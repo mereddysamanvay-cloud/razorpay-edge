@@ -1,0 +1,47 @@
+config_version: "1.0.0"
+
+paths:
+  workbook: data/source/Buildathon_Student_Data_Pack.xlsx
+  outputs: outputs
+  docs: docs
+  knowledge: knowledge
+
+sheets:
+  merchants: P2_Merchants
+  playbooks: P2_Playbooks
+  assumptions: P2_Assumptions
+
+# Transcribed from the P2_Assumptions sheet (source of truth). tests/test_data_validation.py
+# re-reads the sheet and fails if these drift from the workbook text.
+source_assumptions:
+  net_revenue_rate: 0.01            # "about 1% of TPV as net revenue"
+  churn_horizon_days: 90            # "moves most of its volume away within the next 90 days"
+  false_alarm_cost_inr: 1500        # "1.5 hours of CSM time per outreach, valued at Rs 1,500"
+  false_alarm_csm_hours: 1.5
+  saved_merchant_months: 12         # "Net revenue for 12 months at ... most recent monthly TPV (m6)"
+  tpv_unit_inr: 100000              # "Rs lakh per month (1 lakh = 100,000)"
+  max_outreaches: 15                # "at most 15 proactive outreaches this month"
+  # Sheet says "Gifting, Education and Travel". Mapping to the industry labels in P2_Merchants is an
+  # interpretation (flagged in docs/source_data_audit.md).
+  seasonal_industries:
+    - Gifting & Festive
+    - Education / Coaching
+    - Travel & Hospitality
+
+# Solution-side (NOT source) selection hypotheses
+selection:
+  eligible_playbooks: [PB-1, PB-2, PB-3, PB-4]   # PB-5 (growth check-in) and PB-6 (monitor) do not use churn-outreach capacity
+  min_band: medium
+  rank_by: priority_value             # priority_value (risk-weighted run-rate revenue) | risk_score (risk-first)
+  confidence_factor: {high: 1.0, medium: 0.85, low: 0.6}
+  urgency_multiplier:                # renewal_days <= key -> multiplier (first match)
+    - [30, 1.10]
+    - [60, 1.05]
+
+llm:
+  provider: anthropic
+  default_model: claude-sonnet-5-5
+  model_env: CLAUDE_MODEL
+  max_tokens_analyst: 1500
+  max_tokens_outreach: 700
+  max_retries: 2

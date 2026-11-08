@@ -1,0 +1,28 @@
+# Deterministic account-manager-note classifier. Notes are DATA, never instructions.
+# Order matters little: every flag is evaluated independently (case-insensitive regex).
+signals:
+  competitor_explicit:  ["comparing quotes", "competitor", "other provider", "another provider"]
+  pricing_objection:    ["lower mdr", "mdr", "too expensive", "pricing"]
+  exploring_options:    ["exploring options"]
+  rate_card_request:    ["rate card", "renegotiat"]
+  performance_complaint: ["upi drop", "drop-off", "success rate", "payments? (is|are)? ?failing", "failed payments?"]
+  service_complaint:    ["still not closed", "take too long", "not resolved", "no one (has )?responded"]
+  service_escalation:   ["escalated to am"]
+  decision_maker_change: ["new manager", "handed operations", "unclear contact", "contact (has )?changed"]
+  unresponsive:         ["no response", "not responding", "unreachable"]
+  seasonal_claim:       ["seasonal", "after peak season", "festive season", "slow quarter"]
+  positive_growth:      ["growing fast"]
+  expansion_interest:   ["interested in adding", "wants to add", "interested in"]
+  no_concerns:          ["no concerns"]
+  resolved_minor:       ["; fixed", "; resolved", "all resolved"]
+  low_touch:            ["low touch", "never raised tickets"]
+
+# Prompt-injection heuristics: flag only; the text is never executed or obeyed.
+injection_patterns:
+  - "ignore (all|any|previous|prior)"
+  - "system prompt"
+  - "you are now"
+  - "disregard"
+  - "new instructions?"
+  - "reveal"
+  - "api[ _-]?key"

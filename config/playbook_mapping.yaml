@@ -1,0 +1,32 @@
+# Playbook IDs/names/text come from the P2_Playbooks sheet (loaded at runtime; never edited here).
+# This file only encodes HOW evidence maps to those IDs. Thresholds are hypotheses.
+tie_break_order: [PB-3, PB-1, PB-2, PB-4]
+secondary_min_fit: 30            # secondary playbook only if its fit score >= this
+
+triggers:
+  PB-1:   # "Success rate fell sharply or merchant complains of failures"
+    max_success_drop_pp: -5.0
+    notes: [performance_complaint]
+  PB-2:   # "Multiple unresolved tickets, low CSAT"
+    min_unresolved: 3
+    low_csat_max: 2
+    low_csat_min_unresolved: 1
+  PB-3:   # "Competitor mention, renewal within ~60 days"
+    notes: [competitor_explicit, exploring_options, rate_card_request]
+    max_renewal_days: 60
+  PB-4:   # "Low logins, few products used, no response to outreach"
+    max_logins: 5
+    max_products: 2
+    requires_any: {max_recent_vs_early_pct: -10, notes: [unresponsive, decision_maker_change]}
+  PB-5:   # "Healthy and growing"
+    min_recent_vs_early_pct: 8
+    min_success_drop_pp: -2.0
+    max_unresolved: 1
+    min_csat_if_present: 4
+  PB-6: {}  # "Seasonal dip, low-volume stable, or no real risk signal" (default)
+
+# Segment-specific handling of the SAME playbook (see knowledge/segment_guidance.md)
+segment_contact_style:
+  Enterprise: "Account Manager / senior CSM led; executive sponsor where the playbook calls for it; specialist team joins the call."
+  Mid: "Named CSM led; specialist support joins when needed."
+  Small: "Light-touch: a single short call or message, minimal asks on the merchant's time."

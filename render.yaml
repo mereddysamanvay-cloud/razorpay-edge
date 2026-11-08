@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: razorpay-edge
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      # Secrets are entered in the Render dashboard, never stored in this file.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-5-5
+      - key: LLM_MAX_CALLS
+        value: "130"
+      - key: LLM_MAX_OUTPUT_TOKENS
+        value: "1500"
+      # Optional: set both to put a username/password prompt in front of the whole site.
+      - key: EDGE_ACCESS_USER
+        sync: false
+      - key: EDGE_ACCESS_PASSWORD
+        sync: false

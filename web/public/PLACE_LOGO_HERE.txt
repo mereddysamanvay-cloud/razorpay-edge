@@ -1,0 +1,3 @@
+Place the supplied logo here as:  razorpay-edge-logo.png
+
+The application loads exactly this file. It is never redrawn, recoloured or cropped in code.

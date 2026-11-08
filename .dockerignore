@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+.git
+**/node_modules
+web/dist
+data
+outputs
+tests
+docs
+razorpay-merchant-retention-agent
+__pycache__
+.pytest_cache
+.venv
+venv

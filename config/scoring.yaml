@@ -1,0 +1,61 @@
+# ALL values below are DESIGN HYPOTHESES, not learned coefficients. No churn labels exist.
+# They are exercised by sensitivity analysis (src/analytics/sensitivity.py).
+scoring_version: "1.0.0-hypothesis"
+
+weights: {performance: 0.35, relationship: 0.25, engagement: 0.15, commercial: 0.25}
+
+aggregation:
+  weighted_share: 0.5          # score = w*weighted_mean + (1-w)*max_dimension + convergence bonus
+  convergence_threshold: 40    # a dimension "fires" at or above this value
+  convergence_bonus_per_extra_dim: 5
+  convergence_cap: 15
+
+bands: {high: 50, medium: 28}  # risk_score >= high -> high; >= medium -> medium; else low
+driver_min_score: 25           # dimension must reach this to be named a driver
+
+tpv:
+  zero_at_pct: -5              # avg(M4-M6) vs avg(M1-M3): 0 points at -5% or better
+  full_at_pct: -40             # 100 points at -40% or worse
+  decline_tolerance_pct: 1.0   # month-on-month fall must exceed this to count as a decline
+  consistency: {0: 0.3, 1: 0.5, 2: 0.7, 3: 0.9, 4: 1.0}   # by consecutive declines ending at M6
+
+seasonal:
+  enabled: true
+  dip_min_pct: 15              # M4/M5 minimum is >=15% under avg(M1-M3)
+  rebound_min_pct: 5           # and M6 is >=5% above M5
+  multiplier: 0.25             # applied to the TPV component only, never to other dimensions
+
+success:
+  zero_at_pp: -1.0             # change in percentage points (M4-M6 minus M1-M3)
+  full_at_pp: -10.0
+
+performance:
+  max_share: 0.75              # dim = 0.75*max(tpv, success) + 0.25*min(...)
+
+service:
+  unresolved_points: {0: 0, 1: 25, 2: 50, 3: 65, 4: 80, 5: 100}
+  csat_points: {1: 100, 2: 75, 3: 25, 4: 0, 5: 0}          # missing CSAT contributes nothing
+  max_share: 0.7
+  note_points: {service_complaint: 20, service_escalation: 25}
+  growth_damping: {max_unresolved: 1, min_growth_pct: 10, multiplier: 0.5}
+
+engagement:
+  login_points: [[2, 100], [5, 80], [10, 45], [15, 15]]   # logins_last_30d <= first -> points
+  product_points: {1: 60, 2: 20}
+  login_share: 0.6
+  note_points: {unresponsive: 40, decision_maker_change: 25}
+  natural_low_touch: {segment: Small, min_tpv_change_pct: -5, multiplier: 0.4}
+
+commercial:
+  signal_points: {competitor_explicit: 85, exploring_options: 65, rate_card_request: 50}
+  renewal_bonus: [[30, 15], [60, 10], [90, 5]]             # only added when a commercial signal exists
+
+# Critical triggers prompt HUMAN REVIEW. They do not change the score or assert certainty.
+critical_triggers:
+  severe_performance: {max_recent_vs_early_pct: -20, max_success_drop_pp: -5}
+  competitor_near_renewal: {max_renewal_days: 30}
+  service_breakdown: {min_unresolved: 4, max_csat: 2}
+  silent_decline: {max_logins: 2, min_consecutive_declines: 4, max_recent_vs_early_pct: -25}
+
+confidence:
+  min_completeness_for_high: 50
