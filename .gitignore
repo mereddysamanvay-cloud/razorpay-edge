@@ -18,3 +18,7 @@ data/app_settings.json
 data/source/
 razorpay-merchant-retention-agent/
 outputs/
+
+# per-merchant evaluation tables derived from the workbook; regenerate with scripts/make_gate3_reports.py
+manual_validation_log.csv
+merchant_rank_stability.csv

@@ -1,11 +1,14 @@
 # ALL values below are DESIGN HYPOTHESES, not learned coefficients. No churn labels exist.
 # They are exercised by sensitivity analysis (src/analytics/sensitivity.py).
-scoring_version: "1.0.0-hypothesis"
+scoring_version: "1.1.0-hypothesis"
 
 weights: {performance: 0.35, relationship: 0.25, engagement: 0.15, commercial: 0.25}
 
 aggregation:
-  weighted_share: 0.5          # score = w*weighted_mean + (1-w)*max_dimension + convergence bonus
+  # v1.1.0: 0.5 -> 0.8. Rationale (chosen before looking at the shortlist): at 0.5 a single dimension at 100 scored 62-67, i.e. High on
+  # one uncorroborated signal, and the Moderate band held 1 merchant. At 0.8 no single dimension alone can reach High (max 48.0), so High
+  # needs corroboration across dimensions; a severe single-dimension case is Moderate and is still flagged by the critical triggers.
+  weighted_share: 0.8          # score = w*weighted_mean + (1-w)*max_dimension + convergence bonus
   convergence_threshold: 40    # a dimension "fires" at or above this value
   convergence_bonus_per_extra_dim: 5
   convergence_cap: 15

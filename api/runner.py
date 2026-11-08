@@ -9,7 +9,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-from api import insights, scenarios
+from api import insights, scenarios, weights
 from src.agent.llm_client import LLMClient
 from src.agent.orchestrator import enrich_with_llm, run_deterministic
 from src.analytics.feature_engineering import engineer_features
@@ -20,7 +20,7 @@ from src.config import clone, load_playbook_cfg, load_scoring, load_settings
 from src.crm.outreach_generator import template_draft
 from src.crm.playbook_selector import apply_selection
 
-VERSION = "EDGE 1.0 / config 1.0.0 / scoring 1.0.0-hypothesis"
+VERSION = "EDGE 1.1 / config 1.0.0 / scoring 1.1.0-hypothesis"
 BAND_LABEL = {"low": "Low risk", "medium": "Moderate risk", "high": "High risk"}
 Progress = Callable[[str, str, float], None]
 
@@ -87,11 +87,11 @@ def norm_playbooks(pb: pd.DataFrame) -> pd.DataFrame:
     return pb[["playbook_id", "name", "what_happens", "when_it_applies"]].astype(str)
 
 
-def build_engine_frame(clean: pd.DataFrame, playbooks: pd.DataFrame, assumptions: dict, capacity: int):
+def build_engine_frame(clean: pd.DataFrame, playbooks: pd.DataFrame, assumptions: dict, capacity: int, overrides: dict | None = None):
     settings = clone(load_settings())
     settings["source_assumptions"].update({k: v for k, v in assumptions.items() if k in settings["source_assumptions"]})
     settings["source_assumptions"]["max_outreaches"] = int(capacity)
-    scoring, pb_cfg = load_scoring(), load_playbook_cfg()
+    scoring, pb_cfg = weights.apply_overrides(load_scoring(), overrides), load_playbook_cfg()
     feats = add_peer_context(engineer_features(clean, settings, scoring))
     df = prioritise(apply_selection(score_merchants(feats, scoring), pb_cfg, playbooks), settings)
     return settings, scoring, pb_cfg, feats, df
@@ -119,6 +119,9 @@ def merchant_record(r: pd.Series, a, extra_draft) -> dict:
         "dip_and_rebound": bool(r["dip_and_rebound"]),
         "annual_value": r["annual_value_at_stake_inr"], "monthly_net_revenue": r["monthly_net_revenue_inr"],
         "priority_value": r["priority_value_inr"], "risk_weight": r["risk_weight"], "urgency_multiplier": r["urgency_multiplier"],
+        "score_parts": r["score_parts"],
+        "priority_parts": {"risk_weight": r["risk_weight"], "annual_exposure_inr": r["annual_value_at_stake_inr"], "urgency_multiplier": r["urgency_multiplier"],
+                           "formula": "(risk weight x annual exposure - (1 - risk weight) x outreach cost) x renewal urgency. A ranking index in rupee units, not an expected saving or a probability."},
         "risk_rank": r["risk_rank"], "eligible": bool(r["eligible_for_outreach"]),
         "playbook_trigger_reason": r["playbook_trigger_reason"], "playbooks_not_selected": list(r["playbooks_not_selected"]),
         "peer": {"segment_median_change": r["segment_median_tpv_change_pct"], "vs_segment_pp": r["tpv_change_vs_segment_median_pp"],
@@ -150,13 +153,14 @@ def run_analysis(clean: pd.DataFrame, playbooks: pd.DataFrame, assumptions: dict
         raise ValueError("No analysable merchant records after validation.")
 
     progress("score", "Analysing merchant signals", 0.25)
-    settings, scoring, pb_cfg, feats, df = build_engine_frame(clean, pb, assumptions, cap)
+    overrides = cfg.get("scoring_overrides")
+    settings, scoring, pb_cfg, feats, df = build_engine_frame(clean, pb, assumptions, cap, overrides)
     for c in ("account_manager", "logo_url"):
         df[c] = df["merchant_id"].map(dict(zip(clean["merchant_id"], clean[c]))) if c in clean else None
 
     progress("queue", "Building the priority queue", 0.45)
     base_scn = scenarios.default_scenario(cap)
-    cur_scn = {**base_scn, "name": "Current selection", **{k: cfg[k] for k in ("priorities", "risk_focus", "segments", "exclude_industries", "renewal_window") if k in cfg}}
+    cur_scn = {**base_scn, "name": "Current selection", **{k: cfg[k] for k in ("priorities", "risk_focus", "segments", "exclude_industries", "renewal_window", "prefer_segments", "include_ids", "exclude_ids", "exclude_reasons") if k in cfg}}
     base_rank = scenarios.rank(df, base_scn)
     cur_rank = scenarios.rank(df, cur_scn)
     bmap, cmap = base_rank.set_index("merchant_id"), cur_rank.set_index("merchant_id")
@@ -200,7 +204,8 @@ def run_analysis(clean: pd.DataFrame, playbooks: pd.DataFrame, assumptions: dict
         "segments": jsonable(insights.segments(df)), "heatmap": insights.heatmap(df),
         "commercial": jsonable(insights.commercial(df, assumptions, sel_ids)), "operational": insights.operational(df),
         "playbooks": pb.to_dict("records"), "scenario": cur_scn, "baseline_scenario": base_scn,
-        "scoring": {"weights": scoring["weights"], "bands": scoring["bands"], "label": "Design hypotheses. No churn labels exist, so no accuracy is claimed."},
+        "weights_pct": weights.current_weights(scoring), "scoring_overrides": overrides or None, "_feats": feats,
+        "scoring": {"weights": scoring["weights"], "bands": scoring["bands"], "aggregation": scoring["aggregation"], "version": scoring["scoring_version"], "label": "Design hypotheses. No churn labels exist, so no accuracy is claimed."},
         "llm_used": bool(llm_stats), "llm_stats": jsonable(llm_stats) if llm_stats else None, "extra_excluded": excluded_extra,
         "industries": sorted(df["industry"].unique()), "segments_list": sorted(df["segment"].unique()),
     }

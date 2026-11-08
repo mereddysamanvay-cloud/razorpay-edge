@@ -2,12 +2,19 @@
 import clsx from 'clsx'
 import { ArrowDownRight, ArrowUpRight, Save, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ScenarioBars } from '../components/charts'
-import { Badge, Card, Empty, Notice, PageHeader, Select, Tip } from '../components/ui'
+import { Badge, Card, Empty, Notice, PageHeader, Select, Tabs, Tip } from '../components/ui'
 import { api, type Dict } from '../lib/api'
 import { DRIVER, FOCUS, PRIORITY, PRIORITY_RULE, inr } from '../lib/format'
+import { waitForJob } from '../lib/poll'
 import { useSession } from '../lib/session'
+import Robustness from './Robustness'
+
+const DIMS: [string, string][] = [['performance', 'Performance'], ['relationship', 'Relationship'], ['engagement', 'Engagement'], ['commercial', 'Commercial']]
+const WEIGHT_PRESETS: [string, number[]][] = [['Baseline', [35, 25, 15, 25]], ['Equal', [25, 25, 25, 25]], ['Performance-led', [45, 20, 15, 20]], ['Relationship-led', [25, 40, 15, 20]], ['Commercial-led', [25, 20, 15, 40]]]
+const toW = (v: number[]) => Object.fromEntries(DIMS.map(([k], i) => [k, v[i]]))
+const wSum = (w: Dict) => DIMS.reduce((a, [k]) => a + (Number(w[k]) || 0), 0)
 
 const PRESETS: { name: string; spec: Dict }[] = [
   { name: 'A: Prioritise enterprise merchants', spec: { prefer_segments: ['Enterprise'] } },
@@ -18,6 +25,9 @@ const PRESETS: { name: string; spec: Dict }[] = [
 
 export default function Studio() {
   const { sid, s, merchants, byId, st, patch, setSession, reload } = useSession()
+  const nav = useNavigate()
+  const [tab, setTab] = useState('decide')
+  const own: Dict = s.weights_pct ?? Object.fromEntries(DIMS.map(([k]) => [k, (s.scoring.weights[k] ?? 0) * 100]))
   const cur = s.scenario
   const [spec, setSpec] = useState<Dict>(() => ({
     capacity: cur.capacity, priorities: [...(cur.priorities ?? [])], risk_focus: cur.risk_focus ?? 'revenue', segments: [...(cur.segments ?? [])],
@@ -34,6 +44,7 @@ export default function Studio() {
 
   useEffect(() => {
     const n = ++seq.current
+    if (spec.weights && Math.abs(wSum(spec.weights) - 100) > 0.01) { setErr(`Weights must add up to 100%. They currently add up to ${wSum(spec.weights)}%.`); return }
     setBusy(true)
     const t = setTimeout(async () => {
       try { const r = await api.scenario(sid, spec, 'current'); if (n === seq.current) { setRes(r); setErr(null) } }
@@ -56,22 +67,52 @@ export default function Studio() {
     await patch({ scenarios: [...saved, item] }); setName('')
   }
   async function apply() {
+    if (r?.weights?.changed) {
+      if (!window.confirm('Changing weights changes every risk score, so this creates a NEW analysis from the same workbook with these weights. The current analysis stays unchanged in Reports & History. Continue?')) return
+      setBusy(true); setErr(null)
+      try {
+        const { job_id } = await api.applyWeights(sid, spec, name.trim() || undefined)
+        const j = await waitForJob(job_id)
+        nav(`/a/${j.session_id}/queue`)
+      } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
+      return
+    }
     if (!window.confirm('Make this the current shortlist? Queue and Action Centre will follow it. The original baseline stays available for comparison.')) return
     setBusy(true)
     try { const out = await api.applyScenario(sid, { ...spec, name: name.trim() || 'Applied scenario' }); setSession(out.session); await reload() } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
 
+  const weights: Dict = spec.weights ?? own
+  const sum = wSum(weights)
+  const setW = (k: string, v: number) => set('weights', { ...weights, [k]: v })
+  const weightsEdited = !!spec.weights
+
   return (
     <div className="space-y-5">
       <PageHeader title="Decision Studio" sub="Change the rules and see exactly who moves in or out of the shortlist, and why. Nothing changes the live shortlist until you apply it." />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'decide', label: 'Scenarios' }, { id: 'robust', label: 'Ranking robustness' }]} />
+      {tab === 'robust' && <Robustness />}
+      {tab === 'decide' && (<>
       <div className="flex flex-wrap gap-2">
         <span className="label self-center">Start from</span>
         {PRESETS.map((p) => <button key={p.name} className="btn-secondary" onClick={() => setSpec({ ...spec, capacity: cur.capacity, priorities: [], prefer_segments: [], risk_focus: 'revenue', ...p.spec })}>{p.name}</button>)}
-        <button className="btn-ghost" onClick={() => setSpec({ ...spec, priorities: [], prefer_segments: [], risk_focus: 'revenue', segments: [], exclude_industries: [], renewal_window: null, capacity: cur.capacity, include_ids: [], exclude_ids: [], exclude_reasons: {} })}>Reset</button>
+        <button className="btn-ghost" onClick={() => setSpec(({ weights: _w, ...rest }) => ({ ...rest, priorities: [], prefer_segments: [], risk_focus: 'revenue', segments: [], exclude_industries: [], renewal_window: null, capacity: cur.capacity, include_ids: [], exclude_ids: [], exclude_reasons: {} }))}>Reset to baseline</button>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
         <div className="space-y-4">
+          <Card title="Risk weights" sub="Test how the four dimension weights change who is ranked first. These are test scenarios, not recommended final weights.">
+            <div className="space-y-3 text-[13px]">
+              <div className="flex flex-wrap gap-1.5">{WEIGHT_PRESETS.map(([n, v]) => <button key={n} className="btn-secondary !px-2 !py-1 text-[12px]" onClick={() => set('weights', toW(v))}>{n}</button>)}</div>
+              {DIMS.map(([k, l]) => (
+                <div key={k}><div className="flex items-center justify-between"><label htmlFor={`w-${k}`} className="label">{l}</label>
+                  <span className="flex items-center gap-1"><input id={`w-${k}`} type="number" min={0} max={100} step={1} className="input !w-16 !py-0.5 text-right" value={weights[k]} onChange={(e) => setW(k, Number(e.target.value))} /><span className="text-mute">%</span></span></div>
+                  <input type="range" min={0} max={100} value={weights[k]} onChange={(e) => setW(k, Number(e.target.value))} className="w-full accent-brand" aria-label={`${l} weight`} /></div>))}
+              <div className="flex items-center justify-between rounded-md bg-bg px-2.5 py-1.5"><span>Total</span><span className={clsx('num font-semibold', Math.abs(sum - 100) > 0.01 ? 'text-bad' : 'text-ok')}>{sum}% {Math.abs(sum - 100) > 0.01 ? '(must be 100%)' : '(valid)'}</span></div>
+              <div className="flex items-center justify-between text-[12px] text-mute"><span>Analysis weights: {DIMS.map(([k]) => own[k]).join(' / ')}</span>
+                {weightsEdited && <button className="btn-ghost !p-0 text-brand" onClick={() => setSpec((p) => { const { weights: _w, ...rest } = p; return rest })}>Reset to analysis weights</button>}</div>
+            </div>
+          </Card>
           <Card title="Decision controls">
             <div className="space-y-4 text-[13px]">
               <label className="block"><span className="label">Outreach capacity</span>
@@ -110,13 +151,20 @@ export default function Studio() {
                 {[['Moving in', r.moved_in.length], ['Moving out', r.moved_out.length], ['Run-rate represented', inr(r.value_after_inr)], ['Change', `${r.value_after_inr - r.value_before_inr >= 0 ? '+' : ''}${inr(r.value_after_inr - r.value_before_inr)}`]].map(([l, v]) => (
                   <div key={l as string} className="rounded-md bg-bg p-3"><p className="label">{l}</p><p className="num mt-1 text-[20px] font-semibold">{v}</p></div>))}
               </div>
+              {r.weights && (
+                <div className="mt-4 grid gap-3 rounded-md border border-line p-3 text-[13px] md:grid-cols-4">
+                  <div><p className="label">Shortlist overlap</p><p className="num mt-0.5 font-semibold">{r.weights.overlap} of {r.weights.selected_after}</p></div>
+                  <div><p className="label">Categories (High / Moderate / Low)</p><p className="num mt-0.5">{r.weights.bands_before.high}/{r.weights.bands_before.medium}/{r.weights.bands_before.low}{r.weights.changed ? ` to ${r.weights.bands_after.high}/${r.weights.bands_after.medium}/${r.weights.bands_after.low}` : ' (unchanged)'}</p></div>
+                  <div><p className="label">Seasonal merchants shortlisted</p><p className="num mt-0.5">{r.weights.seasonal_selected_after}</p></div>
+                  <div><p className="label">Incomplete-evidence merchants shortlisted</p><p className="num mt-0.5">{r.weights.incomplete_selected_after}</p></div>
+                </div>)}
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div><p className="label mb-1.5 flex items-center gap-1"><ArrowUpRight size={13} className="text-ok" />Moving into the shortlist</p>
                   {r.moved_in.length === 0 ? <p className="text-[13px] text-mute">None</p> : r.moved_in.map((x: Dict) => (
-                    <div key={x.merchant_id} className="border-b border-line py-2 text-[13px] last:border-0"><Link to={`/a/${sid}/merchant/${x.merchant_id}`} className="font-medium hover:text-brand">{x.business_name}</Link> <span className="text-mute">now #{x.to_rank}{x.from_rank ? `, was #${x.from_rank}` : ''}</span><p className="text-[12px] text-mute">{x.reason}</p></div>))}</div>
+                    <div key={x.merchant_id} className="border-b border-line py-2 text-[13px] last:border-0"><Link to={`/a/${sid}/merchant/${x.merchant_id}`} className="font-medium hover:text-brand">{x.business_name}</Link> <span className="text-mute">now #{x.to_rank}{x.from_rank ? `, was #${x.from_rank}` : ''}</span><p className="text-[12px] text-mute">{x.reason}</p>{r.weights?.why?.[x.merchant_id] && <p className="text-[12px] text-brand">Why did this move? {r.weights.why[x.merchant_id]}</p>}</div>))}</div>
                 <div><p className="label mb-1.5 flex items-center gap-1"><ArrowDownRight size={13} className="text-bad" />Moving out</p>
                   {r.moved_out.length === 0 ? <p className="text-[13px] text-mute">None</p> : r.moved_out.map((x: Dict) => (
-                    <div key={x.merchant_id} className="border-b border-line py-2 text-[13px] last:border-0"><Link to={`/a/${sid}/merchant/${x.merchant_id}`} className="font-medium hover:text-brand">{x.business_name}</Link> <span className="text-mute">was #{x.from_rank}{x.to_rank ? `, now #${x.to_rank}` : ''}</span><p className="text-[12px] text-mute">{x.reason}</p></div>))}</div>
+                    <div key={x.merchant_id} className="border-b border-line py-2 text-[13px] last:border-0"><Link to={`/a/${sid}/merchant/${x.merchant_id}`} className="font-medium hover:text-brand">{x.business_name}</Link> <span className="text-mute">was #{x.from_rank}{x.to_rank ? `, now #${x.to_rank}` : ''}</span><p className="text-[12px] text-mute">{x.reason}</p>{r.weights?.why?.[x.merchant_id] && <p className="text-[12px] text-brand">Why did this move? {r.weights.why[x.merchant_id]}</p>}</div>))}</div>
               </div>
               <div className="mt-4 grid gap-4 border-t border-line pt-4 md:grid-cols-2">
                 <div><p className="label mb-1.5">Risk drivers covered</p><p className="text-[13px]">Current: {Object.entries(r.drivers_before).map(([k, v]) => `${DRIVER[k] ?? k} ${v}`).join(', ') || 'none'}</p><p className="text-[13px]">Proposed: {Object.entries(r.drivers_after).map(([k, v]) => `${DRIVER[k] ?? k} ${v}`).join(', ') || 'none'}</p></div>
@@ -127,7 +175,7 @@ export default function Studio() {
               <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
                 <input className="input !w-56" placeholder="Scenario name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Scenario name" />
                 <button className="btn-secondary" onClick={save}><Save size={14} /> Save scenario</button>
-                <button className="btn-primary" onClick={apply} disabled={busy}>Apply as current shortlist</button>
+                <button className="btn-primary" onClick={apply} disabled={busy}>{r.weights?.changed ? 'Create new analysis with these weights' : 'Apply as current shortlist'}</button>
               </div>
             </Card>
 
@@ -146,12 +194,13 @@ export default function Studio() {
       <Card title="Saved scenarios" sub="Compare alternative decisions side by side.">
         {saved.length === 0 ? <p className="text-[13px] text-mute">No saved scenarios yet. Adjust the controls and choose Save scenario.</p> : (<>
           <ScenarioBars items={saved.map((x) => ({ name: x.name, value: +(x.result.value_after_inr / 1e5).toFixed(1), kept: x.result.after.length, moved: x.result.moved_in.length }))} />
-          <div className="mt-3 overflow-x-auto"><table className="w-full"><thead><tr><th className="th">Scenario</th><th className="th">Capacity</th><th className="th">Priorities</th><th className="th">In</th><th className="th">Out</th><th className="th">Run-rate</th><th className="th">Trade-off</th><th className="th" /></tr></thead>
+          <div className="mt-3 overflow-x-auto"><table className="w-full"><thead><tr><th className="th">Scenario</th><th className="th">Capacity</th><th className="th">Weights %</th><th className="th">Priorities</th><th className="th">In</th><th className="th">Out</th><th className="th">Run-rate</th><th className="th">Trade-off</th><th className="th" /></tr></thead>
             <tbody>{saved.map((x) => (
-              <tr key={x.id}><td className="td font-medium">{x.name}</td><td className="td num">{x.spec.capacity}</td><td className="td text-[12.5px]">{[...x.spec.priorities.map((p: string) => PRIORITY[p]), ...(x.spec.prefer_segments ?? []).map((p: string) => `Segment ${p}`)].join('; ') || 'None'}</td>
+              <tr key={x.id}><td className="td font-medium">{x.name}</td><td className="td num">{x.spec.capacity}</td><td className="td num text-[12.5px]">{x.spec.weights ? DIMS.map(([k]) => x.spec.weights[k]).join('/') : 'Analysis'}</td><td className="td text-[12.5px]">{[...x.spec.priorities.map((p: string) => PRIORITY[p]), ...(x.spec.prefer_segments ?? []).map((p: string) => `Segment ${p}`)].join('; ') || 'None'}</td>
                 <td className="td num">{x.result.moved_in.length}</td><td className="td num">{x.result.moved_out.length}</td><td className="td num">{inr(x.result.value_after_inr)}</td><td className="td max-w-xs text-[12.5px] text-mute">{x.result.summary}</td>
                 <td className="td"><div className="flex gap-1"><button className="btn-ghost" onClick={() => setSpec(x.spec)}>Load</button><button className="btn-ghost !p-1" aria-label="Delete scenario" onClick={() => patch({ scenarios: saved.filter((y) => y.id !== x.id) })}><Trash2 size={14} /></button></div></td></tr>))}</tbody></table></div></>)}
       </Card>
+      </>)}
     </div>
   )
 }

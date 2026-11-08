@@ -40,6 +40,28 @@ def load_session(sid: str) -> dict | None:
     return _read(SESSIONS / sid / "session.json")
 
 
+def save_frame(sid: str, df) -> None:
+    """Engineered (pre-scoring) feature frame, so weight scenarios can re-run the real engine."""
+    p = SESSIONS / sid / "features.pkl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    df.to_pickle(p)
+
+
+def load_frame(sid: str):
+    import pandas as pd
+    p = SESSIONS / sid / "features.pkl"
+    return pd.read_pickle(p) if p.exists() else None
+
+
+def save_extra(sid: str, name: str, obj) -> None:
+    with _lock:
+        _write(SESSIONS / sid / f"{name}.json", obj)
+
+
+def load_extra(sid: str, name: str):
+    return _read(SESSIONS / sid / f"{name}.json")
+
+
 def load_state(sid: str) -> dict:
     return _read(SESSIONS / sid / "state.json", {"statuses": {}, "drafts": {}, "review_list": [], "marked": [], "exclusions": {}, "scenarios": [], "notes": {}, "approved": []})
 

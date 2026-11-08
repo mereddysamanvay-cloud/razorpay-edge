@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge, BandBadge, Card, Empty, Identity, MultiPick, PageHeader, Select } from '../components/ui'
 import { api } from '../lib/api'
-import { DRIVER_SHORT, STATUS, inr, isNum, lakh, num, pct, pp } from '../lib/format'
+import { DRIVER_SHORT, STATUS, STATUS_FLOW, inr, isNum, lakh, num, pct, pp } from '../lib/format'
 import { useSession, type M } from '../lib/session'
 import { RowActions } from '../components/RowActions'
 
@@ -30,6 +30,9 @@ export function useCols(status: (id: string) => string): Col[] {
     { id: 'band', label: 'Risk category', get: (m) => m.risk_score, render: (m) => <span className="flex items-center gap-1.5"><BandBadge band={m.risk_band} label={m.risk_label} />{m.immediate && <Badge tone="bad">Immediate review</Badge>}</span>, def: true },
     { id: 'driver', label: 'Primary driver', get: (m) => m.primary_dimension ?? '', render: (m) => (m.primary_dimension ? DRIVER_SHORT[m.primary_dimension] : <span className="text-mute">None</span>), def: true },
     { id: 'value', label: 'Annual revenue value', get: (m) => m.annual_value, render: (m) => inr(m.annual_value), num: true, def: false },
+    { id: 'prio', label: 'Priority index', get: (m) => (m.eligible ? m.priority_value : -1), render: (m) => (m.eligible ? <span title="Ranking aid in rupee units. Not an expected saving.">{inr(m.priority_value)}</span> : <span className="text-mute">Not eligible</span>), num: true, def: false },
+    { id: 'secondary', label: 'Secondary drivers', get: (m) => (m.secondary_dimensions ?? []).join(','), render: (m) => ((m.secondary_dimensions ?? []).length ? m.secondary_dimensions.map((d: string) => DRIVER_SHORT[d]).join(', ') : <span className="text-mute">None</span>), def: false },
+    { id: 'complete', label: 'Evidence completeness', get: (m) => m.completeness, render: (m) => <span title={m.missing_fields?.length ? `Missing: ${m.missing_fields.join(', ')}` : 'No fields missing'}>{m.completeness}%{m.completeness < 100 ? ' ' : ''}{m.completeness < 100 && <span className="text-mute">(incomplete)</span>}</span>, num: true, def: false },
     { id: 'playbook', label: 'Recommended action', get: (m) => m.assessment.primary_playbook_id, render: (m) => <span title={m.assessment.playbook_rationale}>{m.assessment.primary_playbook_id} {m.assessment.primary_playbook_name}</span>, def: false },
     { id: 'status', label: 'Review status', get: (m) => status(m.id), render: (m) => <Badge tone={status(m.id) === 'not_contacted' ? 'neutral' : 'brand'}>{STATUS[status(m.id)]}</Badge>, def: false },
   ] as Col[], [status])
@@ -101,7 +104,7 @@ export default function Portfolio() {
           <MultiPick label="Products" options={['low', 'mid', 'high']} value={f('products')} onChange={(v) => setF('products', v)} />
           <MultiPick label="Engagement" options={['low', 'mid', 'high']} value={f('engagement')} onChange={(v) => setF('engagement', v)} />
           <MultiPick label="Value" options={['top', 'rest']} value={f('value')} onChange={(v) => setF('value', v)} />
-          <MultiPick label="Review status" options={Object.keys(STATUS)} value={f('status')} onChange={(v) => setF('status', v)} />
+          <MultiPick label="Review status" options={['not_contacted', ...STATUS_FLOW]} value={f('status')} onChange={(v) => setF('status', v)} />
           <Select value={String(renewal || '')} onChange={(v) => { const n = new URLSearchParams(sp); v ? n.set('renewal', v) : n.delete('renewal'); setSp(n, { replace: true }) }} className="w-40"
             options={opt([['', 'Any renewal'], ['30', 'Renews in 30 days'], ['60', 'Renews in 60 days'], ['90', 'Renews in 90 days']])} />
           <div className="relative ml-auto" ref={menuRef}>

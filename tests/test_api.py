@@ -91,8 +91,10 @@ def test_exports_and_state(session_id):
         assert client.get(f"/api/sessions/{session_id}/export", params={"kind": kind, "format": "csv"}).status_code == 200
     x = client.get(f"/api/sessions/{session_id}/export", params={"kind": "all", "format": "xlsx"})
     assert x.status_code == 200 and x.content[:2] == b"PK"
-    st = client.post(f"/api/sessions/{session_id}/state", json={"statuses": {"C2001": "contacted"}}).json()
-    assert st["statuses"]["C2001"] == "contacted"
+    # Gate 5: contact can only be recorded through the validated workflow, never by a generic state patch
+    assert client.post(f"/api/sessions/{session_id}/state", json={"statuses": {"C2001": "contacted"}}).status_code == 400
+    st = client.post(f"/api/sessions/{session_id}/state", json={"notes": {"C2001": {"follow_up": "2026-12-01"}}}).json()
+    assert st["notes"]["C2001"]["follow_up"] == "2026-12-01"
 
 
 def test_ask_is_grounded(session_id):

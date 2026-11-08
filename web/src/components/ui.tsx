@@ -25,7 +25,7 @@ export function Tip({ text, children }: { text: string; children?: ReactNode }) 
 export function Badge({ tone = 'neutral', children, className }: { tone?: 'neutral' | 'ok' | 'warn' | 'bad' | 'brand'; children: ReactNode; className?: string }) {
   const t = {
     neutral: 'bg-slate-100 text-slate-600', ok: 'bg-emerald-50 text-emerald-700', warn: 'bg-amber-50 text-amber-700',
-    bad: 'bg-red-50 text-red-700', brand: 'bg-brand-soft text-brand',
+    bad: 'bg-red-50 text-red-700', brand: 'bg-brand-soft text-brand-dark',
   }[tone]
   return <span className={clsx('inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11.5px] font-medium', t, className)}>{children}</span>
 }
@@ -45,7 +45,7 @@ export function Card({ title, sub, action, children, className, pad = true }: { 
           {action}
         </header>
       )}
-      <div className={clsx(pad && 'p-4', title && pad && 'pt-3')}>{children}</div>
+      <div className={clsx(pad ? 'p-4' : 'max-w-full overflow-x-auto', title && pad && 'pt-3')}>{children}</div>
     </section>
   )
 }
@@ -184,7 +184,7 @@ export function Identity({ name, logo, size = 28 }: { name: string; logo?: strin
 }
 
 export function Meter({ value, tone, label }: { value: number; tone?: string; label?: string }) {
-  const c = tone ?? (value >= 50 ? 'bg-bad' : value >= 25 ? 'bg-warn' : 'bg-ok')
+  const c = tone ?? (value >= 50 ? 'bg-bad' : value >= 25 ? 'bg-warn-fill' : 'bg-ok-fill')
   return (
     <div className="flex items-center gap-2" title={label}>
       <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100" role="meter" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>

@@ -3,9 +3,9 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieCh
 import { DRIVER_SHORT, inr, isNum } from '../lib/format'
 import type { M } from '../lib/session'
 
-export const C = { ok: '#19A974', warn: '#E9A23B', bad: '#E05252', brand: '#315BFF', navy: '#172B4D', mute: '#94A3B8', grid: '#E5EAF2', soft: '#9DB2FF' }
+export const C = { ok: '#17A67D', warn: '#E9A23B', bad: '#C23B3B', brand: '#355CFF', navy: '#10213E', mute: '#94A3B8', grid: '#E3E8F0', soft: '#9DB2FF' }
 export const BAND_COLOR: Record<string, string> = { low: C.ok, medium: C.warn, high: C.bad }
-const axis = { fontSize: 11, fill: '#64748B' }
+const axis = { fontSize: 11, fill: '#5B6B82' }
 const tip = { contentStyle: { borderRadius: 6, border: '1px solid #E5EAF2', fontSize: 12, boxShadow: '0 8px 24px rgba(23,43,77,0.12)' } }
 
 export function ChartBox({ h = 240, children, caption }: { h?: number; children: React.ReactElement; caption?: string }) {
@@ -155,3 +155,19 @@ export function ScenarioBars({ items }: { items: { name: string; value: number; 
 }
 
 export { DRIVER_SHORT }
+
+/** Distribution of risk scores in 10-point bins with the two category thresholds marked. Counts of merchants. */
+export function ScoreHistogram({ ms, high, medium }: { ms: M[]; high: number; medium: number }) {
+  const data = Array.from({ length: 10 }, (_, i) => ({ bin: `${i * 10}-${i === 9 ? 100 : i * 10 + 9}`, from: i * 10, merchants: ms.filter((m) => (i === 9 ? m.risk_score >= 90 : m.risk_score >= i * 10 && m.risk_score < i * 10 + 10)).length }))
+  return (
+    <ChartBox h={220} caption={`Merchants by risk score (count). Vertical lines mark Moderate at ${medium} and High at ${high}.`}>
+      <BarChart data={data} margin={{ left: 0, right: 12, top: 8 }}>
+        <CartesianGrid vertical={false} stroke={C.grid} />
+        <XAxis dataKey="bin" tick={axis} /><YAxis tick={axis} allowDecimals={false} />
+        <Tooltip {...tip} cursor={{ fill: '#F1F5F9' }} formatter={(v: any) => [`${v} merchants`, 'Count']} />
+        <ReferenceLine x={data[Math.floor(medium / 10)].bin} stroke={C.warn} strokeDasharray="4 3" /><ReferenceLine x={data[Math.floor(high / 10)].bin} stroke={C.bad} strokeDasharray="4 3" />
+        <Bar dataKey="merchants" fill={C.brand} radius={[3, 3, 0, 0]} label={{ position: 'top', fontSize: 11, fill: '#5B6B82' }} />
+      </BarChart>
+    </ChartBox>
+  )
+}

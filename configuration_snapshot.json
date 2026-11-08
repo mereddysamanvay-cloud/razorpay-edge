@@ -1,0 +1,400 @@
+{
+  "generated_at": "2026-11-09T00:24:25",
+  "analysis_version": "EDGE 1.1 / config 1.0.0 / scoring 1.1.0-hypothesis",
+  "scoring": {
+    "scoring_version": "1.1.0-hypothesis",
+    "weights": {
+      "performance": 0.35,
+      "relationship": 0.25,
+      "engagement": 0.15,
+      "commercial": 0.25
+    },
+    "aggregation": {
+      "weighted_share": 0.8,
+      "convergence_threshold": 40,
+      "convergence_bonus_per_extra_dim": 5,
+      "convergence_cap": 15
+    },
+    "bands": {
+      "high": 50,
+      "medium": 28
+    },
+    "driver_min_score": 25,
+    "tpv": {
+      "zero_at_pct": -5,
+      "full_at_pct": -40,
+      "decline_tolerance_pct": 1.0,
+      "consistency": {
+        "0": 0.3,
+        "1": 0.5,
+        "2": 0.7,
+        "3": 0.9,
+        "4": 1.0
+      }
+    },
+    "seasonal": {
+      "enabled": true,
+      "dip_min_pct": 15,
+      "rebound_min_pct": 5,
+      "multiplier": 0.25
+    },
+    "success": {
+      "zero_at_pp": -1.0,
+      "full_at_pp": -10.0
+    },
+    "performance": {
+      "max_share": 0.75
+    },
+    "service": {
+      "unresolved_points": {
+        "0": 0,
+        "1": 25,
+        "2": 50,
+        "3": 65,
+        "4": 80,
+        "5": 100
+      },
+      "csat_points": {
+        "1": 100,
+        "2": 75,
+        "3": 25,
+        "4": 0,
+        "5": 0
+      },
+      "max_share": 0.7,
+      "note_points": {
+        "service_complaint": 20,
+        "service_escalation": 25
+      },
+      "growth_damping": {
+        "max_unresolved": 1,
+        "min_growth_pct": 10,
+        "multiplier": 0.5
+      }
+    },
+    "engagement": {
+      "login_points": [
+        [
+          2,
+          100
+        ],
+        [
+          5,
+          80
+        ],
+        [
+          10,
+          45
+        ],
+        [
+          15,
+          15
+        ]
+      ],
+      "product_points": {
+        "1": 60,
+        "2": 20
+      },
+      "login_share": 0.6,
+      "note_points": {
+        "unresponsive": 40,
+        "decision_maker_change": 25
+      },
+      "natural_low_touch": {
+        "segment": "Small",
+        "min_tpv_change_pct": -5,
+        "multiplier": 0.4
+      }
+    },
+    "commercial": {
+      "signal_points": {
+        "competitor_explicit": 85,
+        "exploring_options": 65,
+        "rate_card_request": 50
+      },
+      "renewal_bonus": [
+        [
+          30,
+          15
+        ],
+        [
+          60,
+          10
+        ],
+        [
+          90,
+          5
+        ]
+      ]
+    },
+    "critical_triggers": {
+      "severe_performance": {
+        "max_recent_vs_early_pct": -20,
+        "max_success_drop_pp": -5
+      },
+      "competitor_near_renewal": {
+        "max_renewal_days": 30
+      },
+      "service_breakdown": {
+        "min_unresolved": 4,
+        "max_csat": 2
+      },
+      "silent_decline": {
+        "max_logins": 2,
+        "min_consecutive_declines": 4,
+        "max_recent_vs_early_pct": -25
+      }
+    },
+    "confidence": {
+      "min_completeness_for_high": 50
+    }
+  },
+  "settings": {
+    "config_version": "1.0.0",
+    "paths": {
+      "workbook": "data/source/Buildathon_Student_Data_Pack.xlsx",
+      "outputs": "outputs",
+      "docs": "docs",
+      "knowledge": "knowledge"
+    },
+    "sheets": {
+      "merchants": "P2_Merchants",
+      "playbooks": "P2_Playbooks",
+      "assumptions": "P2_Assumptions"
+    },
+    "source_assumptions": {
+      "net_revenue_rate": 0.01,
+      "churn_horizon_days": 90,
+      "false_alarm_cost_inr": 1500,
+      "false_alarm_csm_hours": 1.5,
+      "saved_merchant_months": 12,
+      "tpv_unit_inr": 100000,
+      "max_outreaches": 15,
+      "seasonal_industries": [
+        "Gifting & Festive",
+        "Education / Coaching",
+        "Travel & Hospitality"
+      ]
+    },
+    "selection": {
+      "eligible_playbooks": [
+        "PB-1",
+        "PB-2",
+        "PB-3",
+        "PB-4"
+      ],
+      "min_band": "medium",
+      "rank_by": "priority_value",
+      "confidence_factor": {
+        "high": 1.0,
+        "medium": 0.85,
+        "low": 0.6
+      },
+      "urgency_multiplier": [
+        [
+          30,
+          1.1
+        ],
+        [
+          60,
+          1.05
+        ]
+      ]
+    },
+    "llm": {
+      "provider": "anthropic",
+      "default_model": "claude-sonnet-5-5",
+      "model_env": "CLAUDE_MODEL",
+      "max_tokens_analyst": 1500,
+      "max_tokens_outreach": 700,
+      "max_retries": 2
+    }
+  },
+  "playbook_mapping": {
+    "tie_break_order": [
+      "PB-3",
+      "PB-1",
+      "PB-2",
+      "PB-4"
+    ],
+    "secondary_min_fit": 30,
+    "triggers": {
+      "PB-1": {
+        "max_success_drop_pp": -5.0,
+        "notes": [
+          "performance_complaint"
+        ]
+      },
+      "PB-2": {
+        "min_unresolved": 3,
+        "low_csat_max": 2,
+        "low_csat_min_unresolved": 1
+      },
+      "PB-3": {
+        "notes": [
+          "competitor_explicit",
+          "exploring_options",
+          "rate_card_request"
+        ],
+        "max_renewal_days": 60
+      },
+      "PB-4": {
+        "max_logins": 5,
+        "max_products": 2,
+        "requires_any": {
+          "max_recent_vs_early_pct": -10,
+          "notes": [
+            "unresponsive",
+            "decision_maker_change"
+          ]
+        }
+      },
+      "PB-5": {
+        "min_recent_vs_early_pct": 8,
+        "min_success_drop_pp": -2.0,
+        "max_unresolved": 1,
+        "min_csat_if_present": 4
+      },
+      "PB-6": {}
+    },
+    "segment_contact_style": {
+      "Enterprise": "Account Manager / senior CSM led; executive sponsor where the playbook calls for it; specialist team joins the call.",
+      "Mid": "Named CSM led; specialist support joins when needed.",
+      "Small": "Light-touch: a single short call or message, minimal asks on the merchant's time."
+    }
+  },
+  "note_signals": {
+    "signals": {
+      "competitor_explicit": [
+        "comparing quotes",
+        "competitor",
+        "other provider",
+        "another provider"
+      ],
+      "pricing_objection": [
+        "lower mdr",
+        "mdr",
+        "too expensive",
+        "pricing"
+      ],
+      "exploring_options": [
+        "exploring options"
+      ],
+      "rate_card_request": [
+        "rate card",
+        "renegotiat"
+      ],
+      "performance_complaint": [
+        "upi drop",
+        "drop-off",
+        "success rate",
+        "payments? (is|are)? ?failing",
+        "failed payments?"
+      ],
+      "service_complaint": [
+        "still not closed",
+        "take too long",
+        "not resolved",
+        "no one (has )?responded"
+      ],
+      "service_escalation": [
+        "escalated to am"
+      ],
+      "decision_maker_change": [
+        "new manager",
+        "handed operations",
+        "unclear contact",
+        "contact (has )?changed"
+      ],
+      "unresponsive": [
+        "no response",
+        "not responding",
+        "unreachable"
+      ],
+      "seasonal_claim": [
+        "seasonal",
+        "after peak season",
+        "festive season",
+        "slow quarter"
+      ],
+      "positive_growth": [
+        "growing fast"
+      ],
+      "expansion_interest": [
+        "interested in adding",
+        "wants to add",
+        "interested in"
+      ],
+      "no_concerns": [
+        "no concerns"
+      ],
+      "resolved_minor": [
+        "; fixed",
+        "; resolved",
+        "all resolved"
+      ],
+      "low_touch": [
+        "low touch",
+        "never raised tickets"
+      ]
+    },
+    "injection_patterns": [
+      "ignore (all|any|previous|prior)",
+      "system prompt",
+      "you are now",
+      "disregard",
+      "new instructions?",
+      "reveal",
+      "api[ _-]?key"
+    ]
+  },
+  "assumptions_in_force": {
+    "net_revenue_rate": 0.01,
+    "false_alarm_cost_inr": 1500.0,
+    "saved_merchant_months": 12,
+    "tpv_unit_inr": 100000.0,
+    "max_outreaches": 15,
+    "churn_horizon_days": 90,
+    "seasonal_industries": [
+      "Education / Coaching",
+      "Gifting & Festive",
+      "Travel & Hospitality"
+    ]
+  },
+  "weights_pct": {
+    "performance": 35.0,
+    "relationship": 25.0,
+    "engagement": 15.0,
+    "commercial": 25.0
+  },
+  "scoring_overrides": null,
+  "analysis_config": {
+    "capacity": 15,
+    "use_llm": false
+  },
+  "current_scenario": {
+    "name": "Current selection",
+    "capacity": 15,
+    "priorities": [],
+    "risk_focus": "revenue",
+    "segments": [],
+    "exclude_industries": [],
+    "renewal_window": null,
+    "include_ids": [],
+    "exclude_ids": [],
+    "exclude_reasons": {}
+  },
+  "baseline_scenario": {
+    "name": "Baseline",
+    "capacity": 15,
+    "priorities": [],
+    "risk_focus": "revenue",
+    "segments": [],
+    "exclude_industries": [],
+    "renewal_window": null,
+    "include_ids": [],
+    "exclude_ids": [],
+    "exclude_reasons": {}
+  },
+  "note": "Weights, scales and thresholds are design hypotheses, not learned values."
+}

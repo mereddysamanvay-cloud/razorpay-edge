@@ -124,8 +124,12 @@ def score_row(r: pd.Series, cfg: dict) -> dict:
     top = max(dims.values())
     fired = sum(1 for d in DIMENSIONS if dims[d] >= ag["convergence_threshold"])
     bonus = min(ag["convergence_cap"], ag["convergence_bonus_per_extra_dim"] * max(0, fired - 1))
-    score = min(100.0, ag["weighted_share"] * weighted + (1 - ag["weighted_share"]) * top + bonus)
+    raw = ag["weighted_share"] * weighted + (1 - ag["weighted_share"]) * top + bonus
+    score = min(100.0, raw)
     band = _band(score, cfg["bands"])
+    parts = {"weighted_mean": round(weighted, 2), "weighted_share": ag["weighted_share"], "strongest_dimension": round(top, 2),
+             "convergence_bonus": bonus, "uncapped_total": round(raw, 2),
+             "weighted_points": {d: round(dims[d] * w[d] / wsum, 2) for d in DIMENSIONS}}
 
     # ---- critical triggers (human review only) ------------------------------------------------
     ct, trig = cfg["critical_triggers"], []
@@ -162,7 +166,7 @@ def score_row(r: pd.Series, cfg: dict) -> dict:
         "dim_engagement": round(eng, 1), "dim_commercial": round(com, 1),
         "tpv_component": round(tpv_score, 1), "success_component": round(succ_score, 1),
         "dims_firing": fired, "convergence_bonus": bonus, "seasonal_adjustment_applied": seasonal_applied,
-        "risk_score": round(score, 1), "risk_band": band, "risk_confidence": conf,
+        "risk_score": round(score, 1), "risk_band": band, "risk_confidence": conf, "score_parts": parts,
         "primary_dimension": primary, "secondary_dimensions": drivers[1:],
         "critical_triggers": trig, "contributions": contrib,
     }

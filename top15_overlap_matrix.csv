@@ -1,0 +1,6 @@
+﻿Scenario,Baseline,Equal,Performance-led,Relationship-led,Commercial-led
+Baseline,15,14,15,15,13
+Equal,14,15,14,14,14
+Performance-led,15,14,15,15,13
+Relationship-led,15,14,15,15,13
+Commercial-led,13,14,13,13,15

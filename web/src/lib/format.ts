@@ -43,8 +43,14 @@ export const DRIVER_SHORT: Record<string, string> = {
 }
 export const BAND: Record<string, string> = { low: 'Low risk', medium: 'Moderate risk', high: 'High risk' }
 export const STATUS: Record<string, string> = {
-  not_contacted: 'Not contacted', draft_prepared: 'Draft prepared', approved: 'Approved', contacted: 'Contacted',
-  awaiting_response: 'Awaiting response', follow_up: 'Follow-up required', resolved: 'Resolved', escalated: 'Escalated',
+  not_contacted: 'No draft', pending_review: 'Pending CSM review', reviewed: 'Reviewed / edits made', approved: 'Approved (not sent)',
+  contacted: 'Contacted (recorded manually)', follow_up: 'Follow-up set', follow_up_due: 'Follow-up due', outcome_recorded: 'Outcome recorded', closed: 'Closed / monitor',
+  draft_prepared: 'Pending CSM review', awaiting_response: 'Awaiting response', resolved: 'Resolved', escalated: 'Escalated',
+}
+export const STATUS_FLOW = ['pending_review', 'reviewed', 'approved', 'contacted', 'follow_up', 'follow_up_due', 'outcome_recorded', 'closed']
+export const OUTCOMES: Record<string, string> = {
+  issue_confirmed: 'Issue confirmed', commercial_review_scheduled: 'Commercial review scheduled', support_acknowledged: 'Support issue acknowledged', no_churn_concern: 'No churn concern',
+  unreachable: 'Unreachable', wrong_contact: 'Wrong contact', follow_up_required: 'Follow-up required', declined: 'Declined', other: 'Other (free text)',
 }
 export const PRIORITY: Record<string, string> = {
   high_value: 'Protect high-value merchants', payment_performance: 'Address payment performance issues',

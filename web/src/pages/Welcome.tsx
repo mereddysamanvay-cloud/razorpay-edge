@@ -2,7 +2,6 @@ import { ArrowRight, FolderOpen, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DESCRIPTOR, Logo, TAGLINE } from '../components/Logo'
-import { ILLUSTRATIVE, Ticker } from '../components/Ticker'
 import { Modal } from '../components/ui'
 import { api, type Dict } from '../lib/api'
 import { when } from '../lib/format'
@@ -20,8 +19,8 @@ function SignalField() {
             {Array.from({ length: 6 }).map((_, i) => <line key={`v${i}`} y1="10" y2="510" x1={95 + i * 70} x2={95 + i * 70} stroke="#E5EAF2" />)}
             {[[120, 160], [260, 110], [390, 210], [190, 330], [340, 400], [90, 420]].map(([x, y], i) => (
               <g key={i}>
-                {i > 0 && <line x1={[120, 260, 390, 190, 340, 90][i - 1]} y1={[160, 110, 210, 330, 400, 420][i - 1]} x2={x} y2={y} stroke="#315BFF" strokeOpacity={0.35} strokeWidth="1.5" />}
-                <circle cx={x} cy={y} r={i === 2 && l === 2 ? 11 : 7} fill={i === 2 && l === 2 ? '#315BFF' : '#fff'} stroke="#315BFF" strokeWidth="2" />
+                {i > 0 && <line x1={[120, 260, 390, 190, 340, 90][i - 1]} y1={[160, 110, 210, 330, 400, 420][i - 1]} x2={x} y2={y} stroke="#355CFF" strokeOpacity={0.35} strokeWidth="1.5" />}
+                <circle cx={x} cy={y} r={i === 2 && l === 2 ? 11 : 7} fill={i === 2 && l === 2 ? '#355CFF' : '#fff'} stroke="#355CFF" strokeWidth="2" />
               </g>
             ))}
           </svg>
@@ -56,9 +55,6 @@ export default function Welcome() {
             Internal decision-support tool. Risk scores are transparent heuristics, not churn probabilities. Every outreach draft needs human review before it is used.
           </p>
         </div>
-      </div>
-      <div className="mx-auto w-full max-w-[1180px] px-6 py-6">
-        <Ticker label="Illustrative merchant portfolio (fictional businesses, not Razorpay customers)" items={ILLUSTRATIVE} />
       </div>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Previous analyses" wide>

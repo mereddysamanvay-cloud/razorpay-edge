@@ -16,6 +16,7 @@ interface Ctx {
   setSession: (s: Dict) => void
   reload: () => Promise<void>
   status: (id: string) => string
+  workflow: (merchantId: string, action: string, payload?: Dict) => Promise<void>
 }
 
 const C = createContext<Ctx | null>(null)
@@ -56,12 +57,23 @@ export function SessionProvider({ sid, children }: { sid: string; children: Reac
 
   const merchants = useMemo(() => (s?.merchants ?? []) as M[], [s])
   const byId = useMemo(() => Object.fromEntries(merchants.map((m) => [m.id, m])), [merchants])
-  const status = useCallback((id: string) => st.statuses?.[id] ?? 'not_contacted', [st])
+  const status = useCallback((id: string) => {
+    let v: string = st.statuses?.[id]
+    const m = byId[id]
+    if (!v || v === 'draft_prepared') v = m && m.selected && (m.draft || st.drafts?.[id]) ? 'pending_review' : 'not_contacted'
+    const due = st.notes?.[id]?.follow_up
+    if ((v === 'contacted' || v === 'follow_up') && due && due <= new Date().toISOString().slice(0, 10)) return 'follow_up_due'
+    return v
+  }, [st, byId])
+  const workflow = useCallback(async (merchantId: string, action: string, payload: Dict = {}) => {
+    const next = await api.workflow(sid, merchantId, action, payload)
+    setSt(next)
+  }, [sid])
 
   if (error && !s) return <div className="p-10 text-sm text-bad">Could not load this analysis: {error}</div>
   if (!s) return <div className="p-10 text-sm text-mute">Loading analysis…</div>
   return (
-    <C.Provider value={{ sid, s, st, merchants, byId, loading: false, error, patch, setSession: setS, reload, status }}>
+    <C.Provider value={{ sid, s, st, merchants, byId, loading: false, error, patch, setSession: setS, reload, status, workflow }}>
       {children}
     </C.Provider>
   )

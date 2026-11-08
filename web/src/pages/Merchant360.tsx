@@ -1,16 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import clsx from 'clsx'
-import { ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useMemo } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { TpvLine } from '../components/charts'
-import { Badge, BandBadge, Card, Empty, Identity, Meter, Notice, Select, Tip } from '../components/ui'
+import { DraftWorkflow } from '../components/DraftWorkflow'
+import { Badge, BandBadge, Card, Empty, Identity, Meter, Notice, Tip } from '../components/ui'
 import { DRIVER, STATUS, inr, isNum, lakh, num, pct, pp } from '../lib/format'
 import { useSession, type M } from '../lib/session'
 
 type Level = 'ok' | 'watch' | 'concern' | 'unknown'
 const LV: Record<Level, { l: string; c: string }> = {
-  ok: { l: 'Healthy', c: 'bg-ok' }, watch: { l: 'Watch', c: 'bg-warn' }, concern: { l: 'Concern', c: 'bg-bad' }, unknown: { l: 'Data not available', c: 'bg-slate-300' },
+  ok: { l: 'Healthy', c: 'bg-ok-fill' }, watch: { l: 'Watch', c: 'bg-warn-fill' }, concern: { l: 'Concern', c: 'bg-bad' }, unknown: { l: 'Data not available', c: 'bg-slate-300' },
 }
 
 function health(m: M) {
@@ -36,29 +37,23 @@ const NEXT: Record<string, string[]> = {
   'PB-6': ['No outreach this month', 'Keep on the watchlist and re-check next month'],
 }
 
+const PERIOD = (f: string) => (/tpv/.test(f) ? 'M1 to M6 (latest M6)' : /success/.test(f) ? 'Two averages: M1-M3 and M4-M6' : /ticket/.test(f) ? 'Last 90 days' : /csat/.test(f) ? 'Most recent survey' : /login/.test(f) ? 'Last 30 days (snapshot)' : /product/.test(f) ? 'Current snapshot' : /renewal|days_to/.test(f) ? 'Days to contract renewal' : /note/.test(f) ? 'Account-manager note (undated)' : 'As supplied')
+const NOTE_LABEL: Record<string, string> = { competitor_explicit: 'Competitor mentioned', exploring_options: 'Exploring other options', rate_card_request: 'Rate-card request', pricing_objection: 'Pricing objection',
+  service_complaint: 'Service complaint', service_escalation: 'Service escalation', unresponsive: 'Unresponsive to check-ins', decision_maker_change: 'Contact or decision-maker change', performance_complaint: 'Payment failure concern',
+  resolved_minor: 'Minor issue resolved', seasonal_claim: 'Seasonal explanation given', positive_growth: 'Positive growth', expansion_interest: 'Expansion interest', low_touch: 'Low-touch merchant', no_concerns: 'No concerns raised' }
+const DIM4 = ['performance', 'relationship', 'engagement', 'commercial'] as const
+
 export default function Merchant360() {
   const { mid } = useParams()
-  const { sid, s, merchants, byId, st, patch, status } = useSession()
+  const { sid, s, merchants, byId, status } = useSession()
   const nav = useNavigate()
   const m = mid ? byId[mid] : undefined
   const order = useMemo(() => [...merchants].sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999) || a.risk_rank - b.risk_rank), [merchants])
-  const [draft, setDraft] = useState('')
-  const [subject, setSubject] = useState('')
-  const [copied, setCopied] = useState(false)
-  const saved = m ? st.drafts?.[m.id] : undefined
-  useEffect(() => {
-    if (!m) return
-    const d = saved ?? m.draft
-    setDraft(d?.body ?? ''); setSubject(d?.subject ?? '')
-  }, [m?.id, saved?.body]) // eslint-disable-line react-hooks/exhaustive-deps
-
   if (!m) return <Empty title="Merchant not found" action={<Link className="btn-primary" to={`/a/${sid}/portfolio`}>Back to portfolio</Link>}>This merchant is not part of the current analysis.</Empty>
   const i = order.findIndex((x) => x.id === m.id)
   const a = m.assessment
   const pb = s.playbooks.find((p: any) => p.playbook_id === a.primary_playbook_id)
   const sec = s.playbooks.find((p: any) => p.playbook_id === a.secondary_playbook_id)
-  const approved = (st.approved ?? []).includes(m.id)
-  const edited = saved && saved.body !== m.draft?.body
   const rows = health(m)
 
   return (
@@ -94,6 +89,7 @@ export default function Merchant360() {
           </dl>
         </div>
         <p className="mt-4 rounded-md bg-bg px-3 py-2 text-[13.5px] leading-relaxed"><span className="font-medium">Summary. </span>{a.plain_language_reason}</p>
+        <p className="mt-2 text-[12.5px] text-mute"><span className="font-medium text-ink">Annual net-revenue run-rate proxy: </span>M6 TPV Rs {num(m.tpv_m6, 1)} lakh x {((s.assumptions.net_revenue_rate ?? 0) * 100).toFixed(2).replace(/\.?0+$/, '')}% net revenue x 12 months = {inr(m.annual_value)}. An exposure proxy: not revenue lost and not expected savings. No churn outcome exists in the data.</p>
       </Card>
 
       <Card title="Merchant health" sub="Six separate dimensions. The single score is a summary, not the whole story.">
@@ -147,6 +143,28 @@ export default function Merchant360() {
         {m.note_injection_suspect && <div className="mt-3"><Notice tone="warn" title="Instruction-like text detected">This note contains wording that reads like an instruction. It was ignored by the analysis and should be reviewed.</Notice></div>}
       </Card>
 
+      <Card title="Evidence, separated by type" sub="What was observed, what was extracted from the note, what we infer, and what we recommend. Each is labelled so a fact is never confused with an opinion.">
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div><p className="label mb-1.5">1. Observed facts <Badge tone="ok">Observed</Badge></p>
+            {a.supporting_evidence.filter((e: any) => !/note/.test(e.source_field)).length === 0 ? <p className="text-[13px] text-mute">No observed metric crosses a reporting threshold.</p> : (
+              <div className="overflow-x-auto"><table className="w-full"><thead><tr><th className="th">Fact</th><th className="th">Source and period</th><th className="th">Severity</th></tr></thead>
+                <tbody>{a.supporting_evidence.filter((e: any) => !/note/.test(e.source_field)).map((e: any, k: number) => { const [sv, tone] = SEV(m.dims[SIGNAL_DIM(e.source_field)]); return (
+                  <tr key={k}><td className="td align-top">{e.observed_value}</td><td className="td align-top text-[12.5px] text-mute">{e.source_field}<br />{PERIOD(e.source_field)}</td><td className="td align-top"><Badge tone={tone}>{sv}</Badge></td></tr>) })}</tbody></table></div>)}
+          </div>
+          <div><p className="label mb-1.5">2. Extracted from the account-manager note <Badge tone="warn">Unverified</Badge></p>
+            {m.note ? (<><p className="text-[13px] italic">"{m.note}"</p>
+              <p className="mt-1.5 text-[13px]">{m.note_signals.length ? m.note_signals.map((x: string) => NOTE_LABEL[x] ?? x.replace(/_/g, ' ')).join('; ') : 'No signal extracted.'}</p>
+              <p className="mt-1 text-[12px] text-mute">Signals come from fixed keyword rules on free text. The note has not been verified with the account manager.</p></>) : <p className="text-[13px] text-mute">No note recorded, so nothing is extracted. This lowers evidence completeness; it does not add risk.</p>}
+          </div>
+          <div><p className="label mb-1.5">3. Interpretation <Badge>Inference</Badge></p>
+            <ul className="list-disc space-y-1 pl-4 text-[13px]">{[...new Set(a.supporting_evidence.map((e: any) => e.interpretation))].slice(0, 5).map((x: any, k: number) => <li key={k}>{x}</li>)}{a.supporting_evidence.length === 0 && <li>{a.plain_language_reason}</li>}</ul>
+            <p className="mt-1 text-[12px] text-mute">These are readings of the data, not proven causes.</p></div>
+          <div><p className="label mb-1.5">4. Recommendation <Badge tone="brand">Playbook</Badge></p>
+            <p className="text-[13px] font-medium">{a.primary_playbook_id} · {a.primary_playbook_name}</p><p className="mt-0.5 text-[13px]">{a.playbook_rationale}</p></div>
+        </div>
+        <div className="mt-4 rounded-md bg-bg px-3 py-2 text-[12.5px]"><span className="font-medium">Limitations. </span>{m.missing_fields.length ? `Missing and treated as unknown: ${m.missing_fields.join(', ')}. ` : 'No fields are missing. '}Usage fields are current snapshots; success rate has two period averages only; run-rate is an assumption-based proxy.</div>
+      </Card>
+
       <Card title="Why is this merchant flagged?" sub="Every concern, the data behind it, how serious it is, and what limits our confidence.">
         {a.supporting_evidence.length === 0 ? <p className="text-[13.5px] text-mute">{a.plain_language_reason}</p> : (
           <div className="overflow-x-auto"><table className="w-full">
@@ -166,7 +184,29 @@ export default function Merchant360() {
         <p className="mt-4 rounded-md bg-bg px-3 py-2 text-[13px]"><span className="font-medium">If we do not intervene. </span>{inr(m.annual_value)} of annual run-rate revenue stays exposed{m.renewal_days <= 90 ? `, with renewal in ${num(m.renewal_days)} days` : ''}. {a.primary_risk_driver !== 'No material risk signal' ? `The ${a.primary_risk_driver.toLowerCase()} remains unaddressed.` : ''} The data cannot forecast what the merchant will do.</p>
       </Card>
 
-      <Card title="Recommended intervention" action={<div className="flex items-center gap-2"><Select value={status(m.id)} onChange={(v) => patch({ statuses: { [m.id]: v } })} options={Object.entries(STATUS).map(([value, label]) => ({ value, label }))} className="w-44" /></div>}>
+      {m.score_parts && (() => {
+        const sp = m.score_parts
+        const w: any = s.weights_pct ?? Object.fromEntries(DIM4.map((d) => [d, (s.scoring.weights[d] ?? 0) * 100]))
+        const ok = Math.abs(Math.min(100, sp.uncapped_total) - m.risk_score) < 0.06
+        return (
+          <Card title="How the score is built" sub="Every point is traceable. The total reconciles with the dimension scores.">
+            <details open>
+              <summary className="cursor-pointer text-[13px] font-semibold text-navy">Dimension breakdown and formula</summary>
+              <div className="overflow-x-auto"><table className="mt-2 w-full max-w-2xl"><thead><tr><th className="th">Dimension</th><th className="th text-right">Score (0-100)</th><th className="th text-right">Weight</th><th className="th text-right">Weighted points</th></tr></thead>
+                <tbody>{DIM4.map((d) => <tr key={d}><td className="td">{DRIVER[d]}</td><td className="td num text-right">{m.dims[d].toFixed(1)}</td><td className="td num text-right">{w[d]}%</td><td className="td num text-right">{sp.weighted_points[d].toFixed(2)}</td></tr>)}
+                  <tr><td className="td font-medium" colSpan={3}>Weighted mean</td><td className="td num text-right font-medium">{sp.weighted_mean.toFixed(2)}</td></tr></tbody></table></div>
+              <p className="mt-3 text-[13px]">Total = {sp.weighted_share} x weighted mean ({sp.weighted_mean.toFixed(2)}) + {(1 - sp.weighted_share).toFixed(1)} x strongest dimension ({sp.strongest_dimension.toFixed(1)}) + convergence bonus ({sp.convergence_bonus}) = <span className="num font-semibold">{sp.uncapped_total.toFixed(1)}</span>{sp.uncapped_total > 100 ? ', capped at 100' : ''}. Shown score: <span className="num font-semibold">{m.risk_score.toFixed(1)}</span> {ok ? <Badge tone="ok">Reconciles</Badge> : <Badge tone="bad">Does not reconcile</Badge>}</p>
+              <p className="mt-1 text-[12px] text-mute">Weights and thresholds are design hypotheses, not learned values. Configuration: {s.version}. Contextual adjustments (seasonal, low-touch, growth) appear in the feature table below when they apply.</p>
+            </details>
+            <details className="mt-3">
+              <summary className="cursor-pointer text-[13px] font-semibold text-navy">Feature-level contributions ({a.score_contributions.length})</summary>
+              <div className="overflow-x-auto"><table className="mt-2 w-full"><thead><tr><th className="th">Dimension</th><th className="th">Feature</th><th className="th text-right">Value</th><th className="th text-right">Points</th><th className="th">How it was derived</th></tr></thead>
+                <tbody>{a.score_contributions.map((c: any, k: number) => <tr key={k}><td className="td">{DRIVER[c.dimension] ?? c.dimension}</td><td className="td">{c.feature}</td><td className="td num text-right">{c.value === null || c.value === undefined ? 'Not available' : String(c.value)}</td><td className="td num text-right">{c.points}</td><td className="td text-[12.5px] text-mute">{c.why}</td></tr>)}</tbody></table></div>
+            </details>
+          </Card>)
+      })()}
+
+      <Card title="Recommended intervention" action={<Badge tone="brand">{STATUS[status(m.id)]}</Badge>}>
         <div className="grid gap-5 lg:grid-cols-2">
           <div>
             <p className="label">Playbook</p>
@@ -181,18 +221,7 @@ export default function Merchant360() {
             {a.llm_notes?.length > 0 && <div className="mt-3 space-y-1">{a.llm_notes.map((n: string, k: number) => <p key={k} className="text-[12px] text-mute">{n}</p>)}</div>}
           </div>
           <div>
-            <div className="flex items-center justify-between"><p className="label">Outreach draft</p><Badge tone="warn">DRAFT - pending CSM review</Badge></div>
-            {m.draft || saved ? (<>
-              <input className="input mt-2" value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Subject" />
-              <textarea className="input mt-2 min-h-[240px] leading-relaxed" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Draft body" />
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button className="btn-secondary" disabled={!edited && draft === (m.draft?.body ?? '') && subject === (m.draft?.subject ?? '')} onClick={() => patch({ drafts: { [m.id]: { subject, body: draft, edited: true } }, statuses: { [m.id]: status(m.id) === 'not_contacted' ? 'draft_prepared' : status(m.id) } })}>Save edits</button>
-                <button className="btn-secondary" onClick={async () => { await navigator.clipboard.writeText(`${subject}\n\n${draft}`); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}</button>
-                <button className={approved ? 'btn-secondary' : 'btn-primary'} onClick={() => patch({ approved: approved ? (st.approved ?? []).filter((x: string) => x !== m.id) : [...(st.approved ?? []), m.id], drafts: { [m.id]: { subject, body: draft, edited: true } }, statuses: { [m.id]: approved ? 'draft_prepared' : 'approved' } })}>{approved ? 'Withdraw approval' : 'Approve draft'}</button>
-                <button className="btn-secondary" onClick={() => patch({ statuses: { [m.id]: 'contacted' } })}>Mark as contacted</button>
-              </div>
-              <p className="mt-2 text-[12px] text-mute">Nothing is sent from EDGE. Check every figure against the source before using the text; the draft quotes no internal score, makes no commitments beyond the playbook, and does not mention churn.{m.draft?.source === 'llm' && ' Wording written by Claude and rule-checked.'}</p>
-            </>) : <p className="mt-2 text-[13px] text-mute">No churn-outreach draft: this merchant's playbook ({a.primary_playbook_id}) does not use outreach capacity.</p>}
+            <DraftWorkflow m={m} key={m.id} />
           </div>
         </div>
       </Card>
