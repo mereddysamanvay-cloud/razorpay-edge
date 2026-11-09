@@ -13,7 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 
-from src.config import ROOT
+from src.config import DATA_DIR, ROOT, SERVERLESS
 
 
 class LLMUnavailable(RuntimeError):
@@ -33,7 +33,7 @@ class LLMClient:
         self.stats = {"attempts": 0, "schema_valid": 0, "api_errors": 0, "input_tokens": 0, "output_tokens": 0,
                       "cache_read_tokens": 0}
         self._client = None
-        self._log = ROOT / "outputs" / "llm_audit_log.jsonl"
+        self._log = (DATA_DIR if SERVERLESS else ROOT / "outputs") / "llm_audit_log.jsonl"
 
     @property
     def available(self) -> bool:

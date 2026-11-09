@@ -2,12 +2,17 @@
 from __future__ import annotations
 
 import copy
+import os
+import tempfile
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = ROOT / "config"
+# On Vercel the deployed files are read-only and only /tmp is writable (and not shared between instances), so saved analyses go there.
+SERVERLESS = bool(os.environ.get("VERCEL"))
+DATA_DIR = Path(os.environ.get("EDGE_DATA_DIR") or (Path(tempfile.gettempdir()) / "edge-data" if SERVERLESS else ROOT / "data"))
 
 
 def _load(name: str) -> dict:

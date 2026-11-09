@@ -23,7 +23,7 @@ from api import ask as ask_mod
 from api import exporter, ingest, runner, scenarios, store, validation, weights
 from api.assumptions import KEYS, parse_assumptions
 from src.agent.llm_client import LLMClient
-from src.config import ROOT, load_scoring, load_settings
+from src.config import DATA_DIR, ROOT, SERVERLESS, load_scoring, load_settings
 
 MAX_MB = 25
 SAMPLE = ROOT / "data" / "source" / "Buildathon_Student_Data_Pack.xlsx"
@@ -44,7 +44,15 @@ async def access_gate(request, call_next):
     if secrets.compare_digest(given, pw) and secrets.compare_digest(user, os.environ.get("EDGE_ACCESS_USER", "edge")):
         return await call_next(request)
     return Response("Authentication required", status_code=401, headers={"WWW-Authenticate": 'Basic realm="Razorpay EDGE"'})
-SETTINGS_FILE = ROOT / "data" / "app_settings.json"
+SETTINGS_FILE = DATA_DIR / "app_settings.json"
+
+
+def _spawn(fn, *args) -> None:
+    """Run background work. A serverless function can be frozen as soon as it replies, so there the work runs before the reply."""
+    if SERVERLESS:
+        fn(*args)
+    else:
+        threading.Thread(target=fn, args=args, daemon=True).start()
 
 
 def llm() -> LLMClient:
@@ -233,7 +241,7 @@ def start_analysis(b: AnalyseBody):
         raise HTTPException(400, "No Anthropic API key is configured in .env. Add ANTHROPIC_API_KEY and restart the API.")
     jid = uuid.uuid4().hex[:8]
     JOBS[jid] = {"status": "running", "stage": "validate", "label": "Validating merchant records", "progress": 0.02, "stages_done": [], "use_llm": b.use_llm}
-    threading.Thread(target=_job, args=(jid, b), daemon=True).start()
+    _spawn(_job, jid, b)
     return {"job_id": jid}
 
 
@@ -463,7 +471,7 @@ def run_stability(sid: str, b: StabilityBody):
         except Exception as exc:
             JOBS[jid].update({"status": "error", "error": f"{type(exc).__name__}: {exc}"})
 
-    threading.Thread(target=work, daemon=True).start()
+    _spawn(work)
     return {"job_id": jid}
 
 
@@ -557,7 +565,7 @@ def start_package(sid: str):
         except Exception as exc:
             JOBS[jid].update({"status": "error", "error": f"{type(exc).__name__}: {exc}"})
 
-    threading.Thread(target=work, daemon=True).start()
+    _spawn(work)
     return {"job_id": jid}
 
 
@@ -637,7 +645,7 @@ def get_settings():
 @app.put("/api/settings")
 def put_settings(body: dict):
     cur = {**app_settings(), **{k: v for k, v in body.items() if k in ("default_capacity", "default_risk_focus", "assumption_overrides")}}
-    SETTINGS_FILE.parent.mkdir(exist_ok=True)
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     SETTINGS_FILE.write_text(json.dumps(cur), encoding="utf-8")
     return cur
 

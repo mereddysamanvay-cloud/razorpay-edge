@@ -6,10 +6,10 @@ import shutil
 import threading
 from pathlib import Path
 
-from src.config import ROOT
+from src.config import DATA_DIR
 
-UPLOADS = ROOT / "data" / "uploads"
-SESSIONS = ROOT / "data" / "sessions"
+UPLOADS = DATA_DIR / "uploads"
+SESSIONS = DATA_DIR / "sessions"
 _lock = threading.Lock()
 
 
