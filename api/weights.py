@@ -154,14 +154,18 @@ def stability(feats: pd.DataFrame, scoring: dict, assumptions: dict, playbooks: 
     by_id = base.set_index("merchant_id")
 
     scen_rows, tops = [], {}
+    preset_rank = {name: _rank_map(d) for name, _, d in runs[: len(presets)]}
     for name, ov, d in runs[: len(presets)]:
         sel = list(d.loc[d["selected_for_outreach"], "merchant_id"])
         tops[name] = set(sel)
         sm = summarise(d, sel)
+        moves = [(m, abs(base_rank[m] - preset_rank[name][m])) for m in base_rank if base_rank[m] is not None and preset_rank[name].get(m) is not None]
+        movers = [{"merchant_id": m, "from": base_rank[m], "to": preset_rank[name][m]} for m, x in sorted(moves, key=lambda z: (-z[1], z[0]))[:5] if x > 0]
         scen_rows.append({"scenario": name, "weights": ov["weights"], "high": sm["bands"]["high"], "medium": sm["bands"]["medium"], "low": sm["bands"]["low"],
                           "top_n": sorted(sel), "overlap_with_baseline": len(set(sel) & set(base_sel)), "moved_in": sorted(set(sel) - set(base_sel)),
                           "moved_out": sorted(set(base_sel) - set(sel)), "run_rate_inr": sm["run_rate_inr"], "drivers": sm["drivers"], "segments": sm["segments"],
-                          "seasonal_selected": sm["seasonal_selected"], "incomplete_selected": sm["incomplete_selected"]})
+                          "seasonal_selected": sm["seasonal_selected"], "incomplete_selected": sm["incomplete_selected"],
+                          "avg_rank_movement": round(sum(x for _, x in moves) / len(moves), 2) if moves else 0.0, "max_rank_movement": max((x for _, x in moves), default=0), "top_movers": movers})
     overlap = {a: {b: len(tops[a] & tops[b]) for b in tops} for a in tops}
 
     sel_count = {m: 0 for m in ids}

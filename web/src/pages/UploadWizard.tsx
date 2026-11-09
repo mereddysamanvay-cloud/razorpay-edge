@@ -179,13 +179,21 @@ export default function UploadWizard() {
             {err && <Notice tone="bad">{err}</Notice>}
             {info.error && <Notice tone="bad">{info.error}</Notice>}
 
+            {info.sheet_selection && (
+              <Notice tone={info.sheet_selection.excluded.length ? 'info' : 'ok'} title="Worksheets selected for the Problem 2 analysis">
+                <p><span className="font-medium">Used:</span> {info.sheet_selection.selected.map((x: Dict) => `${x.name} (${x.role})`).join(', ') || 'none found'}.</p>
+                {info.sheet_selection.excluded.length > 0 && <p className="mt-1"><span className="font-medium">Excluded, not analysed:</span> {info.sheet_selection.excluded.map((x: Dict) => x.name).join(', ')}. These belong to other problem statements. Nothing from them is read into this analysis.</p>}
+                {info.sheet_selection.not_used.length > 0 && <p className="mt-1"><span className="font-medium">Not used:</span> {info.sheet_selection.not_used.join(', ')}.</p>}
+                {info.sheet_selection.overridden_into_other_problem.length > 0 && <p className="mt-1 font-medium text-bad">You have assigned a worksheet from another problem statement ({info.sheet_selection.overridden_into_other_problem.join(', ')}). Check this is intended.</p>}
+              </Notice>)}
+
             <Card title="Worksheets" sub="Roles were detected from the headers. Change them if a sheet was identified wrongly.">
               <table className="w-full">
                 <thead><tr><th className="th">Sheet</th><th className="th">Detected role</th><th className="th">Rows</th><th className="th">Columns</th></tr></thead>
                 <tbody>
                   {info.sheets.map((s: Dict) => (
                     <tr key={s.name}>
-                      <td className="td font-medium">{s.name}</td>
+                      <td className="td font-medium">{s.name}{s.role === 'excluded' && <span className="mt-0.5 block text-[11.5px] font-normal text-mute">{s.reason}</span>}</td>
                       <td className="td">
                         <select className="input !w-44" value={info.merchant_sheet === s.name ? 'merchants' : info.playbook_sheet === s.name ? 'playbooks' : info.assumption_sheet === s.name ? 'assumptions' : 'ignore'}
                           onChange={(e) => { const r = e.target.value; reinspect({ merchant_sheet: r === 'merchants' ? s.name : info.merchant_sheet, playbook_sheet: r === 'playbooks' ? s.name : info.playbook_sheet === s.name ? null : info.playbook_sheet, assumption_sheet: r === 'assumptions' ? s.name : info.assumption_sheet === s.name ? null : info.assumption_sheet, mapping: undefined }) }}>

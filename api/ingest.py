@@ -134,12 +134,28 @@ def auto_map(columns: list[str]) -> dict[str, dict]:
     return out
 
 
+_PROBLEM = re.compile(r"^\s*(?:p|problem[ _-]?)(\d)|^\s*p(\d)[_ -]", re.I)
+
+
+def problem_of(name: str) -> int | None:
+    """Problem-statement number from a sheet name such as P2_Merchants or 'Problem 1 tickets'; None when the name carries no tag."""
+    m = _PROBLEM.match(name)
+    return int(next(g for g in m.groups() if g)) if m else None
+
+
 def classify_sheets(path: Path) -> list[dict]:
     res = []
-    for name in sheet_names(path):
+    names = sheet_names(path)
+    tagged = {n: problem_of(n) for n in names}
+    multi = len({p for p in tagged.values() if p}) > 1  # a combined P1/P2/P3 workbook
+    for name in names:
+        if multi and tagged[name] not in (None, 2):
+            res.append({"name": name, "role": "excluded", "rows": 0, "cols": 0, "score": 0, "header_row": 0, "problem": tagged[name],
+                        "reason": f"Belongs to Problem {tagged[name]}; not part of the Problem 2 analysis"})
+            continue
         raw = read_raw(path, name)
         if raw.empty:
-            res.append({"name": name, "role": "empty", "rows": 0, "cols": 0, "score": 0, "header_row": 0})
+            res.append({"name": name, "role": "empty", "rows": 0, "cols": 0, "score": 0, "header_row": 0, "problem": tagged[name]})
             continue
         h = detect_header(raw)
         df = frame_from_raw(raw, h)
@@ -153,7 +169,7 @@ def classify_sheets(path: Path) -> list[dict]:
             role = "assumptions"
         elif score >= 6 or "merchant_id" in cols:
             role = "merchants"
-        res.append({"name": name, "role": role, "rows": int(len(df)), "cols": int(len(df.columns)), "score": score, "header_row": int(h)})
+        res.append({"name": name, "role": role, "rows": int(len(df)), "cols": int(len(df.columns)), "score": score, "header_row": int(h), "problem": tagged[name]})
     if sum(1 for s in res if s["role"] == "merchants") > 1:  # keep the best candidate
         best = max((s for s in res if s["role"] == "merchants"), key=lambda s: (s["score"], s["rows"]))
         for s in res:

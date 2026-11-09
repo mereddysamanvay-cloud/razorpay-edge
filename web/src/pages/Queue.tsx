@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import clsx from 'clsx'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { RowActions } from '../components/RowActions'
@@ -74,6 +75,16 @@ export default function Queue() {
       <Notice tone="info" title="Risk score and priority rank are different things">
         Risk score (0-100) assesses how concerning the merchant's signals are. Priority rank orders who to consider first under the {cap}-contact limit, using the configured priorities ({priorities.length ? priorities.map((p) => PRIORITY[p]).join(', ') : 'none selected'}), the risk focus ({FOCUS[scn.risk_focus]}) and the priority index (a ranking aid in rupee units, not an expected saving).
       </Notice>
+
+      <Card title={`Outreach capacity: ${sel.length} of ${cap} slots used`} sub="The team can contact this many merchants this month. Everyone else needs a decision, shown below.">
+        <div className="flex flex-wrap gap-1.5" role="img" aria-label={`${sel.length} of ${cap} slots used`}>{Array.from({ length: Math.max(cap, sel.length) }).map((_, i) => (
+          <span key={i} className={clsx('flex h-8 w-8 items-center justify-center rounded-md border text-[11px] font-semibold', i < sel.length ? 'border-brand bg-brand text-white' : 'border-dashed border-line text-mute')}>{i < sel.length ? i + 1 : ''}</span>))}</div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-md border border-brand/30 bg-brand-soft p-3"><p className="label">Selected</p><p className="num text-[24px] font-semibold text-navy">{sel.length}</p><p className="text-[12px] text-mute">On the shortlist for outreach</p></div>
+          <div className="rounded-md border border-line p-3"><p className="label">Not selected</p><p className="num text-[24px] font-semibold text-navy">{outside.length}</p><p className="text-[12px] text-mute">Eligible but outside the {cap}; the reason is listed under each name below</p></div>
+          <div className={clsx('rounded-md border p-3', urgent.length ? 'border-amber-300 bg-amber-50' : 'border-line')}><p className="label">Need management attention</p><p className="num text-[24px] font-semibold text-navy">{urgent.length}</p><p className="text-[12px] text-mute">Urgent review flag but no slot. Each needs a decision</p></div>
+        </div>
+      </Card>
 
       <Card>
         <div className="flex flex-wrap items-center gap-x-8 gap-y-2">

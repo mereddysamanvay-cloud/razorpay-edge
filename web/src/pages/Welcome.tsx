@@ -1,4 +1,4 @@
-import { ArrowRight, FolderOpen, Play } from 'lucide-react'
+import { ArrowRight, FolderOpen, Loader2, Play, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DESCRIPTOR, Logo, TAGLINE } from '../components/Logo'
@@ -34,7 +34,14 @@ export default function Welcome() {
   const nav = useNavigate()
   const [prev, setPrev] = useState<Dict[] | null>(null)
   const [open, setOpen] = useState(false)
-  useEffect(() => { api.sessions().then(setPrev).catch(() => setPrev([])) }, [])
+  const [demo, setDemo] = useState<Dict | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => { api.sessions().then(setPrev).catch(() => setPrev([])); api.demoStatus().then(setDemo).catch(() => setDemo(null)) }, [])
+  async function openDemo() {
+    setBusy(true); setErr(null)
+    try { const r = await api.openDemo(); nav(`/a/${r.session_id}/overview`) } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
+  }
 
   return (
     <div className="flex min-h-full flex-col bg-bg">
@@ -48,9 +55,12 @@ export default function Welcome() {
             Understand merchant behaviour, identify emerging risks and prioritise the relationships that matter most.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <button className="btn-primary !px-4 !py-2.5 !text-[14px]" onClick={() => nav('/new')}><Play size={15} /> Start a New Analysis</button>
+            {demo?.available && <button className="btn-primary !px-4 !py-2.5 !text-[14px]" onClick={openDemo} disabled={busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />} Open Demo Workspace</button>}
+            <button className={demo?.available ? 'btn-secondary !px-4 !py-2.5 !text-[14px]' : 'btn-primary !px-4 !py-2.5 !text-[14px]'} onClick={() => nav('/new')}><Upload size={15} /> Upload New Workbook</button>
             <button className="btn-secondary !px-4 !py-2.5 !text-[14px]" onClick={() => setOpen(true)}><FolderOpen size={15} /> Open Previous Analysis</button>
           </div>
+          {err && <p className="mt-3 max-w-md text-[12.5px] text-bad" role="alert">{err}</p>}
+          {demo?.available && <p className="mt-3 max-w-md text-[12px] leading-snug text-mute">The demo workspace is the Problem 2 data ({demo.sheets.join(', ')}), already analysed. Uploading your own workbook never changes it.</p>}
           <p className="mt-6 max-w-md text-[12px] leading-snug text-mute">
             Internal decision-support tool. Risk scores are transparent heuristics, not churn probabilities. Every outreach draft needs human review before it is used.
           </p>

@@ -88,38 +88,43 @@ def build(s: dict) -> dict:
                   "commercial_evidence": {"merchants_with_signal": len(csig), "exposure_inr": _sum(csig), "renewing_60": sum(m["renewal_days"] <= 60 for m in csig),
                                           "status": "Unverified: these signals come from account-manager notes only."}}
 
-    def lead(title, group, strength, effort, suggestion, evidence):
+    def lead(title, group, strength, effort, suggestion, evidence, owner="", implication=""):
         segset = {m["segment"] for m in group}
         return {"title": title, "merchants": len(group), "exposure_inr": _sum(group), "evidence_strength": strength, "urgent_renewals_60": sum(m["renewal_days"] <= 60 for m in group), "effort": effort,
                 "scope": "Possibly systemic" if len(group) >= 5 and len(segset) >= 2 else "Merchant-specific or small cluster", "segments": sorted(segset), "evidence": evidence, "suggestion": suggestion,
-                "merchant_ids": [m["id"] for m in group]}
+                "owner": owner, "implication": implication, "merchant_ids": [m["id"] for m in group]}
     ops = []
     perf = [m for m in ms if m["success_drop_pp"] <= -5]
     if len(perf) >= 3:
         both = sum(m["tpv_change_pct"] <= -10 for m in perf)
         ops.append(lead("Repeated payment-performance deterioration", perf, "Strong" if both / len(perf) >= 0.6 else "Moderate", "Medium to high (needs Payments Ops)",
                         "Check whether a shared method, bank or integration issue sits behind the drop before treating each case on its own. A lead to check, not a confirmed cause.",
-                        f"{len(perf)} merchants lost 5pp or more of payment success; {both} of them also show TPV down 10% or more."))
+                        f"{len(perf)} merchants lost 5pp or more of payment success; {both} of them also show TPV down 10% or more.",
+                        "Payments Operations", "If one method, bank or integration is involved, one fix could help several merchants; confirm before handling merchants one at a time."))
     back = [m for m in ms if m["unresolved"] >= 3]
     if len(back) >= 2:
         known = [m for m in back if not m["csat_missing"]]
         ops.append(lead("Open-ticket backlog on several accounts", back, "Moderate" if known and sum(m["csat"] <= 2 for m in known) / len(known) >= 0.5 else "Limited", "Low to medium (ticket ownership review)",
                         "Review ticket ageing and ownership to see whether response time or hand-offs are the common factor.",
-                        f"{len(back)} merchants have 3 or more unresolved tickets; {sum(m['csat'] <= 2 for m in known)} of {len(known)} with a CSAT report 2 or below."))
+                        f"{len(back)} merchants have 3 or more unresolved tickets; {sum(m['csat'] <= 2 for m in known)} of {len(known)} with a CSAT report 2 or below.",
+                        "Support operations lead", "Check whether ticket ownership or hand-offs are common to these accounts before adding capacity."))
     price = [m for m in ms if COMMERCIAL_SIGNALS & set(m["note_signals"])]
     if len(price) >= 2:
         ops.append(lead("Pricing and competitor conversations", price, "Limited", "Medium (commercial review before renewals)",
                         "Consider a commercial review of volume tiers ahead of these renewals. Confirm each mention with the account manager first.",
-                        f"{len(price)} account notes mention pricing, a rate card or a competitor; {sum(m['renewal_days'] <= 60 for m in price)} renew within 60 days. Notes are unverified."))
+                        f"{len(price)} account notes mention pricing, a rate card or a competitor; {sum(m['renewal_days'] <= 60 for m in price)} renew within 60 days. Notes are unverified.",
+                        "Account Management with the pricing team", "Renewal conversations may need prepared options; confirm each note with the account manager first."))
     low = [m for m in ms if m["products"] <= 2 and m["logins"] <= 5]
     if len(low) >= 3:
         ops.append(lead("Low adoption of available products", low, "Limited", "Low (education and onboarding content)",
                         "Check whether onboarding or education content reaches these merchants. Low usage can be natural for small, stable merchants.",
-                        f"{len(low)} merchants use 2 or fewer products with 5 or fewer logins; {sum(m['segment'] == 'Small' and m['tpv_change_pct'] >= -5 for m in low)} are small with stable TPV. Usage is a snapshot."))
+                        f"{len(low)} merchants use 2 or fewer products with 5 or fewer logins; {sum(m['segment'] == 'Small' and m['tpv_change_pct'] >= -5 for m in low)} are small with stable TPV. Usage is a snapshot.",
+                        "Customer Success enablement", "Low usage may be an onboarding gap or simply normal for the segment; check before acting."))
     seas = [m for m in ms if m["seasonal_adjusted"]]
     if seas:
         ops.append(lead("Seasonal dips handled separately", seas, "Moderate", "Low (re-check next month)", "Re-check these next month. The seasonal industry mapping is an interpretation of the workbook and should be confirmed.",
-                        f"{len(seas)} merchants in seasonal industries show a dip followed by a rebound."))
+                        f"{len(seas)} merchants in seasonal industries show a dip followed by a rebound.",
+                        "Customer Success manager", "No outreach now; keep these on the monthly watchlist."))
     for o in ops:
         o["informational"] = o["title"].startswith("Seasonal")  # not a risk group: shown last and never ranked by exposure
         if o["informational"]:

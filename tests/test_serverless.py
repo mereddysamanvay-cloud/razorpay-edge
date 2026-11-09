@@ -32,6 +32,10 @@ assert s["kpis"]["selected"] == 15 and str(main.store.SESSIONS).startswith(tempf
 j2 = c.get("/api/jobs/" + c.post(f"/api/sessions/{sid}/stability", json={"n": 100}).json()["job_id"]).json()
 assert j2["status"] == "done", j2
 assert c.get(f"/api/sessions/{sid}/export", params={"kind": "risk_register", "format": "csv"}).status_code == 200
+d = c.post("/api/demo")
+assert d.status_code == 200 and d.json()["session_id"] == "demo-p2", d.text      # the preloaded workspace builds on a cold serverless start
+assert c.get("/api/sessions/demo-p2").json()["session"]["kpis"]["selected"] == 15
+assert c.get("/api/llm/status").json()["runtime"].startswith("Vercel")
 print("SERVERLESS_OK")
 """
 

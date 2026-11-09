@@ -48,6 +48,9 @@ export const STATUS: Record<string, string> = {
   draft_prepared: 'Pending CSM review', awaiting_response: 'Awaiting response', resolved: 'Resolved', escalated: 'Escalated',
 }
 export const STATUS_FLOW = ['pending_review', 'reviewed', 'approved', 'contacted', 'follow_up', 'follow_up_due', 'outcome_recorded', 'closed']
+export const VALIDATED: Record<string, string> = { yes: 'Concern confirmed', partly: 'Partly confirmed', no: 'Concern not confirmed', unknown: 'Could not tell' }
+export const ISSUE_CATEGORY: Record<string, string> = { payment_performance: 'Payment performance', service: 'Service or support', commercial: 'Pricing or commercial', engagement: 'Engagement or adoption', none: 'No issue found', other: 'Other' }
+export const ACTION_TAKEN: Record<string, string> = { call: 'Call held', workshop: 'Workshop or training', ticket_closure: 'Tickets closed', commercial_review: 'Commercial review', payments_review: 'Payments review with Payments Ops', no_action: 'No action needed', other: 'Other' }
 export const OUTCOMES: Record<string, string> = {
   issue_confirmed: 'Issue confirmed', commercial_review_scheduled: 'Commercial review scheduled', support_acknowledged: 'Support issue acknowledged', no_churn_concern: 'No churn concern',
   unreachable: 'Unreachable', wrong_contact: 'Wrong contact', follow_up_required: 'Follow-up required', declined: 'Declined', other: 'Other (free text)',

@@ -2,7 +2,7 @@
 import { Check, Copy } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type Dict } from '../lib/api'
-import { OUTCOMES, STATUS } from '../lib/format'
+import { ACTION_TAKEN, ISSUE_CATEGORY, OUTCOMES, STATUS, VALIDATED } from '../lib/format'
 import { useSession, type M } from '../lib/session'
 import { Badge, Notice, Select } from './ui'
 
@@ -29,6 +29,9 @@ export function DraftWorkflow({ m }: { m: M }) {
   const [follow, setFollow] = useState<string>(st.notes?.[m.id]?.follow_up ?? '')
   const [outcome, setOutcome] = useState('')
   const [otext, setOtext] = useState('')
+  const [validated, setValidated] = useState('')
+  const [issue, setIssue] = useState('')
+  const [action, setAction] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -54,6 +57,8 @@ export function DraftWorkflow({ m }: { m: M }) {
 
   if (!base) return <p className="text-[13px] text-mute">No churn-outreach draft: this merchant's playbook ({m.assessment.primary_playbook_id}) does not use outreach capacity.</p>
   const blocked = (pack?.unsupported_claims?.length ?? 0) > 0
+  const PH = /\[[^\]\n]{2,60}\]/g
+  const hasPlaceholder = /\[[^\]\n]{2,60}\]/.test(`${subject}\n${body}`)
   const label = (l: string) => <label className="label mb-1 block">{l}</label>
 
   return (
@@ -83,6 +88,7 @@ export function DraftWorkflow({ m }: { m: M }) {
         <textarea className="input mt-2 min-h-[210px] leading-relaxed" value={body} onChange={(e) => setBody(e.target.value)} aria-label="Draft body" />
         <div className="mt-2 flex flex-wrap gap-2">
           <button className="btn-secondary" disabled={!dirty || busy} onClick={() => run('save_draft', { subject, body })}>Save edits</button>
+          {hasPlaceholder && <button className="btn-secondary" disabled={!reviewer.trim()} title={reviewer.trim() ? '' : 'Enter the reviewer name below first'} onClick={() => { setBody(body.replace(PH, reviewer.trim())); setSubject(subject.replace(PH, reviewer.trim())) }}>Use reviewer name for placeholders</button>}
           <button className="btn-secondary" onClick={async () => { await navigator.clipboard.writeText(`${subject}\n\n${body}`); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy draft</>}</button>
         </div>
         {dirty && <p className="mt-1 text-[12px] text-warn">Unsaved edits. Save them before reviewing; editing an approved draft withdraws its approval.</p>}
@@ -98,7 +104,7 @@ export function DraftWorkflow({ m }: { m: M }) {
             <div>{label('Reviewer name')}<input className="input !w-48" value={reviewer} onChange={(e) => setReviewer(e.target.value)} aria-label="Reviewer name" /></div>
             <label className="flex max-w-md items-start gap-2"><input type="checkbox" className="mt-0.5 accent-brand" checked={ack} onChange={(e) => setAck(e.target.checked)} />I have checked the facts and wording above against the source data.</label>
             <button className="btn-primary" disabled={busy || dirty || !ack || !reviewer.trim() || blocked} onClick={() => run('approve', { acknowledged: true })}>Approve draft</button>
-          </div>{blocked && <p className="text-[12px] text-bad">Remove the unsupported claims before approving.</p>}</div>)}
+          </div>{blocked && <p className="text-[12px] text-bad">Resolve the items under "Unsupported claims in the current text" before approving (for example replace [CSM name] with your name).</p>}</div>)}
         {cur === 'approved' && (<div className="space-y-2"><div className="flex items-center justify-between"><p className="text-mute">Step 3 of 4. Send it yourself, then record that you did. EDGE never sends messages.</p>
           <button className="btn-ghost" disabled={busy} onClick={() => run('withdraw')}>Withdraw approval</button></div>
           <div className="flex flex-wrap items-end gap-3">
@@ -113,13 +119,17 @@ export function DraftWorkflow({ m }: { m: M }) {
           <div className="flex flex-wrap items-end gap-3">
             <Select label="Outcome" value={outcome} onChange={setOutcome} options={[{ value: '', label: 'Choose…' }, ...Object.entries(OUTCOMES).map(([value, l]) => ({ value, label: l }))]} className="w-60" />
             <div className="min-w-[200px] flex-1">{label('Note')}<input className="input" value={otext} onChange={(e) => setOtext(e.target.value)} placeholder={outcome === 'other' ? 'Describe the outcome (required)' : 'Optional'} /></div>
-            <button className="btn-primary" disabled={busy || !outcome} onClick={() => run('outcome', { outcome, text: otext })}>Record outcome</button></div></div>)}
+            <button className="btn-primary" disabled={busy || !outcome} onClick={() => run('outcome', { outcome, text: otext, validated, issue_category: issue, action_taken: action })}>Record outcome</button></div>
+          <div className="flex flex-wrap items-end gap-3 border-t border-line pt-3"><p className="w-full text-[12px] text-mute">Structured fields for future learning (optional). They are your observations, not churn labels.</p>
+            <Select label="Was the concern confirmed?" value={validated} onChange={setValidated} options={[{ value: '', label: 'Not recorded' }, ...Object.entries(VALIDATED).map(([value, label]) => ({ value, label }))]} className="w-52" />
+            <Select label="Issue category" value={issue} onChange={setIssue} options={[{ value: '', label: 'Not recorded' }, ...Object.entries(ISSUE_CATEGORY).map(([value, label]) => ({ value, label }))]} className="w-52" />
+            <Select label="Action taken" value={action} onChange={setAction} options={[{ value: '', label: 'Not recorded' }, ...Object.entries(ACTION_TAKEN).map(([value, label]) => ({ value, label }))]} className="w-56" /></div></div>)}
         {cur === 'outcome_recorded' && (<div className="flex flex-wrap items-center gap-2"><p className="flex-1 text-mute">Outcome recorded. Close the case, or record another outcome after a follow-up.</p>
           <button className="btn-secondary" disabled={busy} onClick={() => run('close', { reason: 'Closed / monitor' })}>Close / monitor</button></div>)}
         {cur === 'closed' && <p className="text-mute">Closed. The history below is kept.</p>}
       </div>
 
-      {outcomes.length > 0 && <div><p className="label mb-1">Outcomes (CSM observations, not churn labels)</p>{outcomes.map((o, i) => <p key={i}>{when(o.at)}: <span className="font-medium">{o.label}</span>{o.text ? `. ${o.text}` : ''}</p>)}</div>}
+      {outcomes.length > 0 && <div><p className="label mb-1">Outcomes (CSM observations, not churn labels)</p>{outcomes.map((o, i) => <p key={i}>{when(o.at)}: <span className="font-medium">{o.label}</span>{o.text ? `. ${o.text}` : ''}{o.learning && Object.keys(o.learning).length ? <span className="text-mute"> ({[o.learning.validated && VALIDATED[o.learning.validated], o.learning.issue_category && ISSUE_CATEGORY[o.learning.issue_category], o.learning.action_taken && ACTION_TAKEN[o.learning.action_taken]].filter(Boolean).join(' · ')})</span> : null}</p>)}</div>}
       {events.length > 0 && (
         <details><summary className="cursor-pointer text-[12.5px] font-semibold text-navy">History ({events.length})</summary>
           <ul className="mt-1 space-y-0.5 text-[12.5px]">{events.map((e, i) => <li key={i}><span className="text-mute">{when(e.at)}</span> {EVENT[e.type] ?? e.type}{e.reviewer ? ` by ${e.reviewer}` : ''}{e.date ? `, ${e.date}` : ''}{e.channel ? `, ${e.channel}` : ''}{e.detail ? `. ${e.detail}` : ''}</li>)}</ul></details>)}

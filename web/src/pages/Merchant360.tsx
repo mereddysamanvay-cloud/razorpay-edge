@@ -92,6 +92,14 @@ export default function Merchant360() {
         <p className="mt-2 text-[12.5px] text-mute"><span className="font-medium text-ink">Annual net-revenue run-rate proxy: </span>M6 TPV Rs {num(m.tpv_m6, 1)} lakh x {((s.assumptions.net_revenue_rate ?? 0) * 100).toFixed(2).replace(/\.?0+$/, '')}% net revenue x 12 months = {inr(m.annual_value)}. An exposure proxy: not revenue lost and not expected savings. No churn outcome exists in the data.</p>
       </Card>
 
+      <Card title="Recommended next action" action={<Link className="btn-primary" to={`/a/${sid}/actions?m=${m.id}`}>{m.draft ? 'Review the draft' : 'Open in Action Centre'}</Link>}>
+        <div className="grid gap-4 text-[13px] md:grid-cols-3">
+          <div><p className="label">Playbook</p><p className="mt-0.5 font-semibold text-navy">{a.primary_playbook_id} · {a.primary_playbook_name}</p><p className="mt-0.5 text-mute">{a.playbook_rationale}</p></div>
+          <div><p className="label">First step</p><p className="mt-0.5">{(NEXT[a.primary_playbook_id] ?? [])[0] ?? 'No action this month; keep on the watchlist.'}</p>{m.selected ? <p className="mt-1 text-[12px] text-mute">Shortlisted at #{m.rank}. Status: {STATUS[status(m.id)]}.</p> : <p className="mt-1 text-[12px] text-mute">{m.eligible ? 'Eligible but outside the shortlist.' : 'Not using outreach capacity.'}</p>}</div>
+          <div><p className="label">Check first</p>{a.additional_checks_for_csm.length ? <ul className="mt-0.5 list-disc space-y-0.5 pl-4">{a.additional_checks_for_csm.slice(0, 2).map((x: string, k: number) => <li key={k}>{x}</li>)}</ul> : <p className="mt-0.5 text-mute">Standard review only.</p>}</div>
+        </div>
+      </Card>
+
       <Card title="Merchant health" sub="Six separate dimensions. The single score is a summary, not the whole story.">
         <div className="grid gap-3 md:grid-cols-3">
           {rows.map((r) => (

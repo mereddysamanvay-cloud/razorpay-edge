@@ -20,7 +20,7 @@ from src.config import clone, load_playbook_cfg, load_scoring, load_settings
 from src.crm.outreach_generator import template_draft
 from src.crm.playbook_selector import apply_selection
 
-VERSION = "EDGE 1.1 / config 1.0.0 / scoring 1.1.0-hypothesis"
+VERSION = "EDGE 1.2 / config 1.0.0 / scoring 1.1.1-hypothesis"
 BAND_LABEL = {"low": "Low risk", "medium": "Moderate risk", "high": "High risk"}
 Progress = Callable[[str, str, float], None]
 

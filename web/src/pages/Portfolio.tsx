@@ -12,23 +12,23 @@ interface Col { id: string; label: string; get: (m: M) => any; render?: (m: M) =
 
 export function useCols(status: (id: string) => string): Col[] {
   return useMemo(() => [
-    { id: 'rank', label: 'Priority', get: (m) => m.rank ?? 9999, render: (m) => (m.rank ? <span className="num font-semibold">#{m.rank}</span> : <span className="text-mute">–</span>), num: true, def: true },
-    { id: 'id', label: 'Merchant ID', get: (m) => m.id, def: true },
-    { id: 'name', label: 'Merchant', get: (m) => m.name, render: (m) => <span className="flex items-center gap-2"><Identity name={m.name} logo={m.logo_url} size={24} /><span className="font-medium">{m.name}</span></span>, def: true },
-    { id: 'segment', label: 'Segment', get: (m) => m.segment, render: (m) => (m.segment === 'Mid' ? 'Mid-market' : m.segment), def: true },
-    { id: 'industry', label: 'Industry', get: (m) => m.industry, def: false },
+    { id: 'name', label: 'Merchant', get: (m) => m.name, render: (m) => <span className="flex min-w-[190px] items-center gap-2"><Identity name={m.name} logo={m.logo_url} size={24} /><span className="leading-tight"><span className="block font-medium">{m.name}</span><span className="block text-[11.5px] text-mute">{m.id} · {m.segment === 'Mid' ? 'Mid-market' : m.segment}</span></span></span>, def: true },
+    { id: 'band', label: 'Risk category', get: (m) => m.risk_score, render: (m) => <span className="flex flex-wrap items-center gap-1.5"><BandBadge band={m.risk_band} label={m.risk_label} /><span className="num text-[12px] text-mute">{Math.round(m.risk_score)}</span>{m.immediate && <Badge tone="bad">Immediate</Badge>}</span>, def: true },
+    { id: 'driver', label: 'Primary driver', get: (m) => m.primary_dimension ?? '', render: (m) => (m.primary_dimension ? DRIVER_SHORT[m.primary_dimension] : <span className="text-mute">None</span>), def: true },
     { id: 'tpv', label: 'M6 TPV', get: (m) => m.tpv_m6, render: (m) => lakh(m.tpv_m6), num: true, def: true },
     { id: 'tpvchg', label: 'TPV change', get: (m) => m.tpv_change_pct, render: (m) => <span className={isNum(m.tpv_change_pct) && m.tpv_change_pct <= -10 ? 'text-bad' : ''}>{pct(m.tpv_change_pct, 0, true)}</span>, num: true, def: true },
-    { id: 'succ', label: 'Success rate', get: (m) => m.success_recent, render: (m) => pct(m.success_recent, 1), num: true, def: true },
+    { id: 'renewal', label: 'Renewal in', get: (m) => m.renewal_days, render: (m) => <span className={m.renewal_days <= 30 ? 'font-medium text-bad' : m.renewal_days <= 60 ? 'text-warn' : ''}>{num(m.renewal_days)} d</span>, num: true, def: true },
+    { id: 'rank', label: 'Priority', get: (m) => m.rank ?? 9999, render: (m) => (m.rank ? <span className="num font-semibold">#{m.rank}</span> : <span className="text-mute">–</span>), num: true, def: true },
+    { id: 'id', label: 'Merchant ID', get: (m) => m.id, def: false },
+    { id: 'segment', label: 'Segment', get: (m) => m.segment, render: (m) => (m.segment === 'Mid' ? 'Mid-market' : m.segment), def: false },
+    { id: 'industry', label: 'Industry', get: (m) => m.industry, def: false },
+    { id: 'succ', label: 'Success rate', get: (m) => m.success_recent, render: (m) => pct(m.success_recent, 1), num: true, def: false },
     { id: 'succchg', label: 'Success change', get: (m) => m.success_drop_pp, render: (m) => <span className={isNum(m.success_drop_pp) && m.success_drop_pp <= -2 ? 'text-bad' : ''}>{pp(m.success_drop_pp)}</span>, num: true, def: false },
-    { id: 'csat', label: 'CSAT', get: (m) => m.csat, render: (m) => (isNum(m.csat) ? m.csat : <span className="text-mute">Not available</span>), num: true, def: true },
-    { id: 'unres', label: 'Unresolved', get: (m) => m.unresolved, render: (m) => `${num(m.unresolved)} / ${num(m.tickets)}`, num: true, def: true },
+    { id: 'csat', label: 'CSAT', get: (m) => m.csat, render: (m) => (isNum(m.csat) ? m.csat : <span className="text-mute">Not available</span>), num: true, def: false },
+    { id: 'unres', label: 'Unresolved', get: (m) => m.unresolved, render: (m) => `${num(m.unresolved)} / ${num(m.tickets)}`, num: true, def: false },
     { id: 'logins', label: 'Logins (30d)', get: (m) => m.logins, render: (m) => num(m.logins), num: true, def: false },
     { id: 'products', label: 'Products', get: (m) => m.products, render: (m) => num(m.products), num: true, def: false },
-    { id: 'renewal', label: 'Renewal in', get: (m) => m.renewal_days, render: (m) => <span className={m.renewal_days <= 30 ? 'font-medium text-bad' : m.renewal_days <= 60 ? 'text-warn' : ''}>{num(m.renewal_days)} d</span>, num: true, def: true },
-    { id: 'score', label: 'Risk score', get: (m) => m.risk_score, render: (m) => <span className="num font-semibold">{Math.round(m.risk_score)}</span>, num: true, def: true },
-    { id: 'band', label: 'Risk category', get: (m) => m.risk_score, render: (m) => <span className="flex items-center gap-1.5"><BandBadge band={m.risk_band} label={m.risk_label} />{m.immediate && <Badge tone="bad">Immediate review</Badge>}</span>, def: true },
-    { id: 'driver', label: 'Primary driver', get: (m) => m.primary_dimension ?? '', render: (m) => (m.primary_dimension ? DRIVER_SHORT[m.primary_dimension] : <span className="text-mute">None</span>), def: true },
+    { id: 'score', label: 'Risk score', get: (m) => m.risk_score, render: (m) => <span className="num font-semibold">{Math.round(m.risk_score)}</span>, num: true, def: false },
     { id: 'value', label: 'Annual revenue value', get: (m) => m.annual_value, render: (m) => inr(m.annual_value), num: true, def: false },
     { id: 'prio', label: 'Priority index', get: (m) => (m.eligible ? m.priority_value : -1), render: (m) => (m.eligible ? <span title="Ranking aid in rupee units. Not an expected saving.">{inr(m.priority_value)}</span> : <span className="text-mute">Not eligible</span>), num: true, def: false },
     { id: 'secondary', label: 'Secondary drivers', get: (m) => (m.secondary_dimensions ?? []).join(','), render: (m) => ((m.secondary_dimensions ?? []).length ? m.secondary_dimensions.map((d: string) => DRIVER_SHORT[d]).join(', ') : <span className="text-mute">None</span>), def: false },
@@ -49,8 +49,8 @@ export default function Portfolio() {
   const nav = useNavigate()
   const [sp, setSp] = useSearchParams()
   const cols = useCols(status)
-  const [vis, setVis] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('edge.cols') || 'null') ?? cols.filter((c) => c.def).map((c) => c.id) } catch { return cols.filter((c) => c.def).map((c) => c.id) } })
-  useEffect(() => { try { localStorage.setItem('edge.cols', JSON.stringify(vis)) } catch { /* ignore */ } }, [vis])
+  const [vis, setVis] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('edge.cols.v2') || 'null') ?? cols.filter((c) => c.def).map((c) => c.id) } catch { return cols.filter((c) => c.def).map((c) => c.id) } })
+  useEffect(() => { try { localStorage.setItem('edge.cols.v2', JSON.stringify(vis)) } catch { /* ignore */ } }, [vis])
   const [colMenu, setColMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [sortBy, setSortBy] = useState<{ col: string; dir: 1 | -1 }>({ col: 'rank', dir: 1 })

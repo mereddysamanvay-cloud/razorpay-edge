@@ -37,8 +37,9 @@ export default function Settings() {
   const [focus, setFocus] = useState('revenue')
   const [saved, setSaved] = useState(false)
   const [llm, setLlm] = useState<Dict | null>(null)
+  const [ai, setAi] = useState<Dict | null>(null)
   const [testing, setTesting] = useState(false)
-  useEffect(() => { api.settings().then((c) => { setCfg(c); setCap(c.default_capacity ?? ''); setFocus(c.default_risk_focus ?? 'revenue') }); fetch('/api/config/model').then((r) => r.json()).then(setModel).catch(() => setModel(null)) }, [])
+  useEffect(() => { api.settings().then((c) => { setCfg(c); setCap(c.default_capacity ?? ''); setFocus(c.default_risk_focus ?? 'revenue') }); api.llmStatus().then(setAi).catch(() => setAi(null)); fetch('/api/config/model').then((r) => r.json()).then(setModel).catch(() => setModel(null)) }, [])
   const prov: Dict = Object.fromEntries((s.assumptions_provenance ?? []).map((p: Dict) => [p.key, p]))
   const over: string[] = s.assumptions_overridden ?? []
   const w: Dict = s.weights_pct ?? Object.fromEntries(DIMS.map(([k]) => [k, (s.scoring.weights[k] ?? 0) * 100]))
@@ -142,13 +143,29 @@ export default function Settings() {
         </Card>)}
 
       {tab === 'ai' && (
-        <Card title="AI provider">
-          <div className="space-y-3 text-[13px]">
-            <p>Provider: Anthropic Claude · Model: <span className="font-medium">{cfg?.model}</span> · API key: {cfg?.llm_available ? <Badge tone="ok">Configured on the server</Badge> : <Badge tone="warn">Not set</Badge>}</p>
-            <p className="text-mute">The key is read from the server environment and is never shown or sent to the browser. Set <code>ANTHROPIC_API_KEY</code> and <code>CLAUDE_MODEL</code> in the server's environment (for a local run, the project's <code>.env</code> file) and restart.</p>
-            <div className="flex items-center gap-3"><button className="btn-secondary" disabled={testing || !cfg?.llm_available} onClick={async () => { setTesting(true); setLlm(await api.testLlm()); setTesting(false) }}>{testing ? 'Testing…' : 'Test connection'}</button>
-              {llm && <span className={llm.ok ? 'text-ok' : 'text-bad'}>{llm.message}</span>}</div>
-            <Notice tone="info">Without a key everything except open-ended Ask EDGE questions and Claude-written drafts still works. Reports & History shows exactly where AI was and was not used.</Notice>
+        <Card title="Anthropic connection" sub="Only status is shown. The key itself is never displayed, logged, exported or sent to the browser.">
+          <div className="space-y-4 text-[13px]">
+            {ai ? (<>
+              <dl className="grid gap-x-8 gap-y-3 md:grid-cols-2">
+                {([
+                  ['API key configured', ai.key_configured ? 'Yes' : 'No', ai.key_configured],
+                  ['Backend can access key', ai.backend_can_access_key ? 'Yes' : 'No', ai.backend_can_access_key],
+                  ['Authentication test', ai.authentication_test, ai.authentication_test === 'Successful'],
+                  ['Model configured', ai.model, true],
+                  ['Last successful test', ai.last_test?.ok ? when(ai.last_test.at) : 'Never', !!ai.last_test?.ok],
+                  ['AI-assisted analysis', ai.ai_assisted_analysis, ai.ai_assisted_analysis === 'Available'],
+                ] as [string, string, boolean][]).map(([l, v, good]) => (
+                  <div key={l}><dt className="label">{l}</dt><dd className="mt-0.5 flex items-center gap-2 font-medium"><span className={good ? 'text-ok' : 'text-warn'} aria-hidden>{good ? '●' : '○'}</span>{v}</dd></div>))}
+              </dl>
+              <p className="text-[12.5px] text-mute">Provider {ai.provider} · reads <code>{ai.env_var}</code> · running on a {ai.runtime}{ai.key_source ? ` · key found in: ${ai.key_source}` : ''} · model setting: {ai.model_source}.</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <button className="btn-secondary" disabled={testing || !ai.key_configured} onClick={async () => { setTesting(true); try { const r = await api.testLlm(); setLlm(r); setAi(r.status) } finally { setTesting(false) } }}>{testing ? 'Testing…' : 'Run connection test'}</button>
+                <span className="text-[12px] text-mute">One minimal request (about 20 tokens). Nothing larger is run from this page.</span>
+                {llm && <span className={llm.ok ? 'text-ok' : 'text-bad'} role="status">{llm.ok ? 'Authentication succeeded.' : `Failed: ${llm.message}`}</span>}
+              </div>
+              <Notice tone="info" title="Local and deployed are separate">{ai.note} If this page shows "No" on your Vercel link but "Yes" on your laptop, add <code>ANTHROPIC_API_KEY</code> as a private environment variable in the Vercel project settings, then redeploy.</Notice>
+            </>) : <p className="text-mute">Loading…</p>}
+            <Notice tone="info">Without a working key everything except open-ended Ask EDGE questions and Claude-written drafts still works. Reports & History shows exactly where AI was and was not used.</Notice>
           </div>
         </Card>)}
     </div>

@@ -37,7 +37,7 @@ export function Card({ title, sub, action, children, className, pad = true }: { 
   return (
     <section className={clsx('card', className)}>
       {(title || action) && (
-        <header className="flex items-start justify-between gap-3 px-4 pt-3.5">
+        <header className="flex flex-wrap items-start justify-between gap-3 px-4 pt-3.5">
           <div>
             {title && <h3 className="h-sec">{title}</h3>}
             {sub && <p className="mt-0.5 text-[12px] leading-snug text-mute">{sub}</p>}
@@ -119,7 +119,7 @@ export function Segmented<T extends string>({ value, onChange, options }: { valu
 
 export function Tabs({ tabs, value, onChange }: { tabs: { id: string; label: string }[]; value: string; onChange: (v: string) => void }) {
   return (
-    <div className="flex gap-5 border-b border-line" role="tablist">
+    <div className="flex gap-5 overflow-x-auto whitespace-nowrap border-b border-line scroll-thin" role="tablist">
       {tabs.map((t) => (
         <button key={t.id} role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)}
           className={clsx('-mb-px border-b-2 pb-2 text-[13px] font-medium', value === t.id ? 'border-brand text-brand' : 'border-transparent text-mute hover:text-ink')}>

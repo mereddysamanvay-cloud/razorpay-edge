@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import {
-  BarChart3, ChevronsLeft, ChevronsRight, ClipboardCheck, FileText, Gauge, History, ListOrdered, Menu, MessageSquareText, Search, Settings as SettingsIcon, SlidersHorizontal, UserSearch, Users, X,
+  BarChart3, Brain, ChevronsLeft, ChevronsRight, ClipboardCheck, FileText, Gauge, History, ListOrdered, Menu, MessageSquareText, Search, Settings as SettingsIcon, SlidersHorizontal, UserSearch, Users, X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -13,7 +13,8 @@ import { Identity } from './ui'
 const GROUPS = [
   { title: 'Understand', items: [
     { to: 'overview', label: 'Overview', icon: Gauge }, { to: 'portfolio', label: 'Merchant Portfolio', icon: Users },
-    { to: 'merchant', label: 'Merchant Intelligence', icon: UserSearch }, { to: 'insights', label: 'Business Insights', icon: BarChart3 }] },
+    { to: 'merchant', label: 'Merchant Intelligence', icon: UserSearch }, { to: 'insights', label: 'Business Insights', icon: BarChart3 },
+    { to: 'intelligence', label: 'Decision Intelligence', icon: Brain }] },
   { title: 'Decide and act', items: [
     { to: 'queue', label: 'Priority Queue', icon: ListOrdered }, { to: 'studio', label: 'Decision Studio', icon: SlidersHorizontal }, { to: 'actions', label: 'Action Centre', icon: ClipboardCheck }] },
   { title: 'Govern', items: [{ to: 'reports', label: 'Reports & History', icon: History }, { to: 'settings', label: 'Settings', icon: SettingsIcon }] },

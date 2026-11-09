@@ -1,6 +1,6 @@
 # ALL values below are DESIGN HYPOTHESES, not learned coefficients. No churn labels exist.
 # They are exercised by sensitivity analysis (src/analytics/sensitivity.py).
-scoring_version: "1.1.0-hypothesis"
+scoring_version: "1.1.1-hypothesis"
 
 weights: {performance: 0.35, relationship: 0.25, engagement: 0.15, commercial: 0.25}
 
@@ -50,7 +50,7 @@ engagement:
   natural_low_touch: {segment: Small, min_tpv_change_pct: -5, multiplier: 0.4}
 
 commercial:
-  signal_points: {competitor_explicit: 85, exploring_options: 65, rate_card_request: 50}
+  signal_points: {competitor_explicit: 85, exploring_options: 65, rate_card_request: 50, pricing_objection: 50}   # pricing/MDR objection added in 1.1.1 (was extracted but never scored)
   renewal_bonus: [[30, 15], [60, 10], [90, 5]]             # only added when a commercial signal exists
 
 # Critical triggers prompt HUMAN REVIEW. They do not change the score or assert certainty.

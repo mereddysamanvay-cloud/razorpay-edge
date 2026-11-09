@@ -192,6 +192,26 @@ def summary_md(s: dict, stab: dict | None, val: dict, ai: dict) -> str:
 
 
 # ---------------------------------------------------------------- package
+FILE_NOTES = {
+    "source_audit.md": "The workbook as received: hash, sheets, row counts, missing values, units, assumptions and playbooks word for word.",
+    "scoring_methodology.md": "How a score is built: weights, formulas, features, thresholds and why they were chosen.",
+    "configuration_snapshot.json": "The exact scoring, selection and playbook configuration in force for this analysis.",
+    "merchant_register.csv": "Every merchant with metrics, risk category, driver, playbook and review status.",
+    "top_outreach_list.csv": "The ranked shortlist with reasons, draft text and workflow status.",
+    "playbook_mapping.csv": "The six workbook playbooks and which of them use outreach capacity.",
+    "weight_scenario_comparison.csv": "Five weight scenarios against the baseline: bands, overlap, who moves in and out.",
+    "merchant_rank_stability.csv": "How often each merchant is shortlisted across all tested configurations, and its rank range.",
+    "top15_overlap_matrix.csv": "Shared merchants between each pair of scenario shortlists.",
+    "weight_sensitivity_report.md": "A readable summary of the sensitivity test. It measures ranking robustness, not accuracy.",
+    "manual_validation_log.csv": "The 20 validation cases with expectations, results, evidence and reviewer judgement.",
+    "failure_analysis.md": "What passed, what needs review, what failed and what that means.",
+    "limitations.md": "What the analysis cannot claim.",
+    "analysis_lineage.json": "Where the numbers came from: workbook hash, sheets, mapping, overrides and AI use.",
+    "evaluation_summary.md": "Start here: the whole method, results and safeguards in one page.",
+    "edge_full_export.xlsx": "All tables above in one Excel workbook.",
+}
+
+
 def build_package(s: dict, st: dict, stab: dict | None, val: dict, ai: dict, upload_dir: Path | None) -> bytes:
     path = upload_file(upload_dir)
     extra = {"stability": stab, "validation": val}
@@ -217,9 +237,8 @@ def build_package(s: dict, st: dict, stab: dict | None, val: dict, ai: dict, upl
     files["analysis_lineage.json"] = json.dumps(lineage(s, st, ai, path), indent=2, default=str)
     files["evaluation_summary.md"] = summary_md(s, stab, val, ai)
     files["edge_full_export.xlsx"] = exporter.to_xlsx(None, s, st, extra)
-    readme = ["# Razorpay EDGE evaluation package", "", f"Analysis **{s['name']}**, generated {dt.datetime.now():%Y-%m-%d %H:%M}, {s['version']}.", "",
-              "Start with `evaluation_summary.md`. Every file below was generated from the saved analysis.", ""] + [f"- `{n}`" for n in files] + \
-             ["", "No churn labels exist: nothing here is an accuracy, precision, recall or probability claim."]
+    readme = ["# Razorpay EDGE evaluation package", "", f"Analysis **{s['name']}**, generated {dt.datetime.now():%Y-%m-%d %H:%M}, {s['version']}.", "", "Start with `evaluation_summary.md`.", "", "| File | What it is |", "|---|---|"] + \
+             [f"| `{n}` | {FILE_NOTES.get(n, 'Generated from the saved analysis.')} |" for n in files] + ["", "No churn labels exist: nothing here is an accuracy, precision, recall or probability claim."]
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("README.md", "\n".join(readme) + "\n")

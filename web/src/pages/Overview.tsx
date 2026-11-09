@@ -51,25 +51,29 @@ export default function Overview() {
 
       <Card title="Summary and recommendation">
         <p className="text-[14.5px] leading-relaxed">
-          {flagged} of {k.total} merchants show material risk evidence ({k.high} high, {k.medium} moderate); {k.immediate} meet a critical review trigger, and {urgentOut} of those are not on the shortlist.
-          {' '}{k.selected} of {k.capacity} outreach slots are used. {topExp && topExp.merchants > 0 ? <>The largest exposure is <strong>{topExp.name.toLowerCase()}</strong> at {inr(topExp.annual_value_inr)}{topCount && topCount.key !== topExp.key ? `, while ${topCount.name.toLowerCase()} has the most merchants (${topCount.merchants})` : ''}.</> : null}
-          {k.renewals_30_at_risk > 0 && <> {k.renewals_30_at_risk} flagged merchant(s) renew within 30 days.</>}
+          <strong>{flagged} of {k.total}</strong> merchants need attention ({k.high} high, {k.medium} moderate); {k.selected} of {k.capacity} outreach slots are used and {urgentOut} urgent merchant(s) are outside the shortlist.
+          {topExp && topExp.merchants > 0 ? <> Largest exposure: <strong>{topExp.name.toLowerCase()}</strong> ({inr(topExp.annual_value_inr)}).</> : null}
         </p>
-        <p className="mt-2 text-[13px] text-mute">Suggested next step: review the {urgentOut > 0 ? `${urgentOut} urgent merchant(s) outside the shortlist in the ` : ''}<Link className="text-brand-dark underline" to={`/a/${sid}/queue`}>Priority Queue</Link>, then work the shortlist in the <Link className="text-brand-dark underline" to={`/a/${sid}/actions`}>Action Centre</Link>. Scores are heuristics, not churn probabilities; exposure is annual run-rate, not revenue lost.</p>
-        <button className="mt-3 text-[12.5px] font-medium text-brand-dark hover:underline" onClick={() => setDetail(!detail)} aria-expanded={detail}>{detail ? 'Hide detail' : 'Show detail'}</button>
+        <p className="mt-2 text-[13px] text-mute">Next: review the <Link className="text-brand-dark underline" to={`/a/${sid}/queue`}>Priority Queue</Link>, then work the shortlist in the <Link className="text-brand-dark underline" to={`/a/${sid}/actions`}>Action Centre</Link>. Scores are heuristics, not churn probabilities; exposure is run-rate, not revenue lost.</p>
+        <button className="mt-2 text-[12.5px] font-medium text-brand-dark hover:underline" onClick={() => setDetail(!detail)} aria-expanded={detail}>{detail ? 'Hide detail' : 'Show detail'}</button>
         {detail && <div className="mt-2 space-y-2 border-t border-line pt-3 text-[13.5px] leading-relaxed">{s.narrative.map((p: string, i: number) => <p key={i}>{p}</p>)}</div>}
       </Card>
 
-      <section aria-label="Key figures" className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Merchants monitored" value={k.total} sub="In this analysis" tip="Valid merchant records in this analysis." onClick={() => go('')} />
-        <Stat label="Material risk" tone="bad" value={flagged} sub={`${k.high} high · ${k.medium} moderate`} tip="High is a score of 50 or more; moderate is 28 to 49. A heuristic from four dimensions, not a churn probability." onClick={() => go('risk=high,medium')} />
-        <Stat label="Immediate attention" value={k.immediate} sub="Meets a critical review trigger" tip="Severe performance fall, competitor mention close to renewal, many unresolved tickets with low CSAT, or near-zero logins after a steep decline. A review flag; the score is unchanged." onClick={() => go('immediate=1')} />
-        <Stat label="Outreach slots" value={`${k.selected} / ${k.capacity}`} sub={`${k.remaining_capacity} remaining`} tip="Contacts the team can make this month (workbook assumption or your override)." onClick={() => nav(`/a/${sid}/queue`)} />
+      <section aria-label="Key figures" className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+        <Stat label="Merchants monitored" value={k.total} sub={`${k.total - k.data_incomplete} with complete evidence`} tip="Valid merchant records in this analysis. Missing CSAT or notes are treated as unknown, not poor." onClick={() => go('')} />
+        <Stat label="Need attention" tone="bad" value={flagged} sub={`${k.high} high · ${k.medium} moderate`} tip="High is a score of 50 or more; moderate is 28 to 49. A heuristic, not a churn probability." onClick={() => go('risk=high,medium')} />
+        <Stat label="Outreach capacity" value={`${k.selected} / ${k.capacity}`} sub={`${k.remaining_capacity} slot(s) remaining`} tip="Contacts the team can make this month. Opens the Priority Queue." onClick={() => nav(`/a/${sid}/queue`)} />
         <Stat label="Revenue exposure" value={inr(k.exposure_annual_inr)} sub="Annual run-rate, moderate + high" tip="M6 TPV x net revenue rate x 12 for merchants in the moderate or high band. Exposure, not revenue lost and not expected savings." onClick={() => nav(`/a/${sid}/insights`)} />
         <Stat label="Upcoming renewals" value={k.renewals_60} sub={`${k.renewals_30} within 30 days · ${k.renewals_30_at_risk} flagged`} tip="Contracts due within 60 days, regardless of risk." onClick={() => go('renewal=60')} />
-        <Stat label="Evidence complete" value={`${k.total - k.data_incomplete} of ${k.total}`} sub={`${k.data_incomplete} missing CSAT or a note`} tip="Missing CSAT or notes are treated as unknown, not as poor. They lower completeness and add no risk." onClick={() => go('')} />
-        <Stat label="Low risk" tone="ok" value={k.low} sub={`${k.seasonal_protected} seasonal dips not escalated`} tip="No material risk signal, or a signal explained by seasonality or naturally low volume." onClick={() => go('risk=low')} />
       </section>
+      <details className="rounded-lg border border-line bg-white px-4 py-2 text-[13px]">
+        <summary className="cursor-pointer font-medium text-navy">More figures</summary>
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 pb-2">
+          <Stat label="Immediate attention" value={k.immediate} sub="Meets a critical review trigger" tip="A review flag; the score is unchanged." onClick={() => go('immediate=1')} />
+          <Stat label="Evidence incomplete" value={k.data_incomplete} sub="Missing CSAT or a note" tip="Lowers confidence, never the score." onClick={() => go('')} />
+          <Stat label="Low risk" tone="ok" value={k.low} sub={`${k.seasonal_protected} seasonal dips not escalated`} tip="No material signal, or one explained by seasonality or low volume." onClick={() => go('risk=low')} />
+        </div>
+      </details>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <Card title="Risk distribution" sub="Merchants by risk category (count)"><RiskDonut ms={merchants} onPick={(b) => go(`risk=${b}`)} /></Card>

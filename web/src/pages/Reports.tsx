@@ -43,12 +43,16 @@ export default function Reports() {
   const [cmp, setCmp] = useState<Dict | null>(null)
   const [tab, setTab] = useState('reports')
   const [pkg, setPkg] = useState<{ busy: boolean; label: string; err?: string }>({ busy: false, label: '' })
+  const [arts, setArts] = useState<Dict[]>([])
+  const loadArts = () => api.artifacts(sid).then((r) => setArts(r.rows)).catch(() => setArts([]))
+  useEffect(() => { loadArts() }, [sid]) // eslint-disable-line react-hooks/exhaustive-deps
   async function buildPackage() {
     setPkg({ busy: true, label: 'Starting' })
     try {
       const { job_id } = await api.startPackage(sid)
       await waitForJob(job_id, (j) => setPkg({ busy: true, label: `${j.label ?? 'Working'} (${Math.round((j.progress ?? 0) * 100)}%)` }))
       setPkg({ busy: false, label: '' })
+      loadArts()
       window.location.href = api.packageUrl(sid)
     } catch (e) { setPkg({ busy: false, label: '', err: (e as Error).message }) }
   }
@@ -74,11 +78,17 @@ export default function Reports() {
         </dl>
       </Card>
 
+      <Card title="Evaluation package" sub="The complete, reviewable record of this analysis in one zip, with a README that explains every file."
+        action={<span className="flex gap-2"><button className="btn-primary" disabled={pkg.busy} onClick={buildPackage}>{pkg.busy ? pkg.label : 'Export evaluation package'}</button>{arts.find((a) => a.key === 'evaluation_package')?.generated && <a className="btn-secondary" href={api.packageUrl(sid)}><Download size={13} /> Download last build</a>}</span>}>
+        {pkg.err && <div className="mb-3"><Notice tone="bad">{pkg.err}</Notice></div>}
+        <p className="text-[12.5px] text-mute">Source audit, methodology, scoring configuration, merchant register, top list, playbook mapping, sensitivity results, validation cases and failures, limitations, lineage and an evaluation summary. If the robustness test has not been run, it runs first (about 30 seconds).</p>
+        <div className="mt-3 overflow-x-auto"><table className="w-full"><thead><tr><th className="th">Report</th><th className="th">Status</th><th className="th">When</th><th className="th">How it is produced</th></tr></thead>
+          <tbody>{arts.map((a) => <tr key={a.key}><td className="td font-medium">{a.label}</td><td className="td"><Badge tone={a.generated ? 'ok' : 'warn'}>{a.generated ? 'Generated' : 'Not generated yet'}</Badge></td><td className="td text-[12.5px] text-mute">{a.at ? when(a.at) : a.generated ? 'On demand' : '–'}</td><td className="td text-[12.5px] text-mute">{a.how}</td></tr>)}</tbody></table></div>
+      </Card>
+
       <AiUse sid={sid} />
 
-      <Card title="Export" action={<span className="flex gap-2"><button className="btn-primary" disabled={pkg.busy} onClick={buildPackage}>{pkg.busy ? pkg.label : 'Export evaluation package'}</button><a className="btn-secondary" href={api.exportUrl(sid, 'all', 'xlsx')}><FileSpreadsheet size={14} /> Everything (Excel)</a></span>}>
-        {pkg.err && <div className="mb-3"><Notice tone="bad">{pkg.err}</Notice></div>}
-        <p className="mb-3 rounded-md bg-bg px-3 py-2 text-[12.5px] text-mute">The evaluation package is one zip: source audit, methodology, scoring configuration, merchant register, top list, playbook mapping, sensitivity results, validation cases and failures, limitations and analysis lineage. If the robustness test has not been run, it runs first (about 30 seconds).</p>
+      <Card title="Individual exports" sub="For one table at a time. The evaluation package above includes all of them." action={<a className="btn-secondary" href={api.exportUrl(sid, 'all', 'xlsx')}><FileSpreadsheet size={14} /> Everything (Excel)</a>}>
         <div className="divide-y divide-line">
           {KINDS.map(([k, l, d]) => (
             <div key={k} className="flex flex-wrap items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">

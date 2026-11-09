@@ -129,14 +129,15 @@ export default function Insights() {
         <div className="space-y-4">
           <Notice tone="info" title="How these leads are ordered">{x.operational_order}</Notice>
           <Card pad={false}>
-            <div className="overflow-x-auto"><table className="w-full"><thead><tr><th className="th">#</th><th className="th">Lead</th><th className="th text-right">Merchants</th><th className="th text-right">Exposure</th><th className="th">Evidence</th><th className="th text-right">Renewing in 60 days</th><th className="th">Effort</th><th className="th">Scope</th></tr></thead>
+            <div className="overflow-x-auto"><table className="w-full"><thead><tr><th className="th">#</th><th className="th">Lead</th><th className="th text-right">Merchants</th><th className="th text-right">Exposure</th><th className="th">Evidence</th><th className="th text-right">Renewing in 60 days</th><th className="th">Suggested owner</th><th className="th">Effort</th><th className="th">Scope</th></tr></thead>
               <tbody>{x.operational.map((o: Dict, i: number) => (
                 <tr key={o.title}><td className="td num text-mute">{o.informational ? '–' : i + 1}</td><td className="td font-medium">{o.title}</td><td className="td num text-right">{o.merchants}</td><td className="td num text-right">{o.informational ? 'Not at risk' : inr(o.exposure_inr)}</td>
-                  <td className="td"><Badge tone={STRENGTH[o.evidence_strength]}>{o.evidence_strength}</Badge></td><td className="td num text-right">{o.urgent_renewals_60}</td><td className="td text-[12.5px]">{o.effort}</td><td className="td text-[12.5px]">{o.scope}</td></tr>))}</tbody></table></div>
+                  <td className="td"><Badge tone={STRENGTH[o.evidence_strength]}>{o.evidence_strength}</Badge></td><td className="td num text-right">{o.urgent_renewals_60}</td><td className="td text-[12.5px] font-medium">{o.owner}</td><td className="td text-[12.5px]">{o.effort}</td><td className="td text-[12.5px]">{o.scope}</td></tr>))}</tbody></table></div>
           </Card>
           {x.operational.map((o: Dict) => (
             <Card key={o.title}><div className="flex items-start justify-between gap-3"><h3 className="h-sec">{o.title}</h3><Badge tone="brand">{o.merchants} merchants</Badge></div>
               <p className="mt-2 text-[13px]"><span className="font-medium">Observed. </span>{o.evidence}</p><p className="mt-1.5 text-[13px]"><span className="font-medium">Suggested investigation. </span>{o.suggestion}</p>
+              <p className="mt-1.5 text-[13px]"><span className="font-medium">Suggested owner. </span>{o.owner}. <span className="font-medium">Operational implication. </span>{o.implication}</p>
               <p className="mt-1.5 text-[12px] text-mute">Segments: {o.segments.map((g: string) => (g === 'Mid' ? 'Mid-market' : g)).join(', ')}. No amount recoverable by acting on this lead is claimed.</p></Card>))}
           <p className="text-[12px] text-mute">These patterns are associations in a six-month snapshot. They may point to a product, service or commercial issue but do not prove one.</p>
         </div>)}

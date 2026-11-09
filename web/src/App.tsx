@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { Shell } from './components/Shell'
 import { SessionProvider, useSession } from './lib/session'
 import Actions from './pages/Actions'
+import DecisionIntelligence from './pages/DecisionIntelligence'
 import Insights from './pages/Insights'
 import Merchant360 from './pages/Merchant360'
 import Overview from './pages/Overview'
@@ -32,6 +33,7 @@ export default function App() {
       <Route path="/a/:sid" element={<Scoped />}>
         <Route index element={<Navigate to="overview" replace />} />
         <Route path="overview" element={<Overview />} />
+        <Route path="intelligence" element={<DecisionIntelligence />} />
         <Route path="portfolio" element={<Portfolio />} />
         <Route path="queue" element={<Queue />} />
         <Route path="merchant" element={<MerchantIndex />} />

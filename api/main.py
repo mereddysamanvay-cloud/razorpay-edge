@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from api import ai_disclosure as ai_mod
-from api import evaluation, insights_ext, workflow
+from api import evaluation, insights_ext, intelligence, workflow
 from api import ask as ask_mod
 from api import exporter, ingest, runner, scenarios, store, validation, weights
 from api.assumptions import KEYS, parse_assumptions
@@ -26,7 +26,10 @@ from src.agent.llm_client import LLMClient
 from src.config import DATA_DIR, ROOT, SERVERLESS, load_scoring, load_settings
 
 MAX_MB = 25
-SAMPLE = ROOT / "data" / "source" / "Buildathon_Student_Data_Pack.xlsx"
+PACK = ROOT / "data" / "source" / "Buildathon_Student_Data_Pack.xlsx"
+DEMO_WORKBOOK = ROOT / "demo" / "Problem2_Demo_Workbook.xlsx"
+SAMPLE = PACK if PACK.exists() else DEMO_WORKBOOK  # the full pack is not shipped with a deployment; the Problem 2 sheets are
+DEMO_ID = "demo-p2"
 app = FastAPI(title="Razorpay EDGE API")
 JOBS: dict[str, dict] = {}
 
@@ -96,6 +99,13 @@ def inspect(upload_id: str, body: dict | None = None) -> dict:
     as_name = body.get("assumption_sheet") or role("assumptions")
     out = {"upload_id": upload_id, "file_name": path.name, "size_kb": round(path.stat().st_size / 1024, 1), "sheets": sheets,
            "merchant_sheet": m_name, "playbook_sheet": pb_name, "assumption_sheet": as_name}
+    chosen = {"merchants": m_name, "playbooks": pb_name, "assumptions": as_name}
+    out["sheet_selection"] = {
+        "selected": [{"name": n, "role": r} for r, n in chosen.items() if n],
+        "excluded": [{"name": s["name"], "reason": s.get("reason") or "Not a Problem 2 data sheet"} for s in sheets if s["role"] == "excluded"],
+        "not_used": [s["name"] for s in sheets if s["role"] in ("other", "empty") and s["name"] not in chosen.values()],
+        "overridden_into_other_problem": [n for n in chosen.values() if n and next((s["role"] == "excluded" for s in sheets if s["name"] == n), False)],
+    }
     if not m_name:
         out["error"] = "No sheet that looks like merchant data was found. Select the sheet that holds one row per merchant."
         return out
@@ -178,7 +188,7 @@ class AnalyseBody(BaseModel):
 STAGES = ["validate", "score", "queue", "recommend", "llm", "insights"]
 
 
-def _job(job_id: str, b: AnalyseBody):
+def _job(job_id: str, b: AnalyseBody, fixed_sid: str | None = None, extra: dict | None = None):
     job = JOBS[job_id]
     try:
         info = inspect(b.upload_id, b.model_dump())
@@ -215,7 +225,7 @@ def _job(job_id: str, b: AnalyseBody):
             job["stages_done"] = [s for s in STAGES if STAGES.index(s) < STAGES.index(stage)]
 
         result = runner.run_analysis(prep["clean"], playbooks, values, cfg, progress, bool(client), client)
-        sid = uuid.uuid4().hex[:10]
+        sid = fixed_sid or uuid.uuid4().hex[:10]
         qr = prep["report"]
         name = b.name or Path(info["file_name"]).stem
         result.update({
@@ -223,7 +233,7 @@ def _job(job_id: str, b: AnalyseBody):
             "sheets": {"merchants": info["merchant_sheet"], "playbooks": info["playbook_sheet"], "assumptions": info["assumption_sheet"], "reference_used": ref_used},
             "assumptions": {k: values[k] for k in KEYS}, "assumptions_provenance": prov, "assumptions_overridden": overridden, "quality": {k: v for k, v in qr.items() if k != "invalid_records"} | {"invalid_records": qr["invalid_records"][:50]},
             "excluded_records": qr["excluded_records"] + result.pop("extra_excluded", []),
-            "period": "Six months of TPV (M1 to M6) as supplied; calendar dates are not included in the workbook.",
+            "period": "Six months of TPV (M1 to M6) as supplied; calendar dates are not included in the workbook.", **(extra or {}),
         })
         store.save_frame(sid, result.pop("_feats"))
         store.save_session(sid, result)
@@ -279,6 +289,51 @@ def _frame(s: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+_demo_lock = threading.Lock()
+
+
+def _build_demo() -> None:
+    """Analyse the bundled Problem 2 workbook under the fixed id demo-p2. Uploads get their own ids, so they can never overwrite it."""
+    uid = uuid.uuid4().hex[:10]
+    d = store.upload_dir(uid)
+    d.mkdir(parents=True, exist_ok=True)
+    shutil.copy(DEMO_WORKBOOK, d / DEMO_WORKBOOK.name)
+    info = inspect(uid)
+    body = AnalyseBody(upload_id=uid, name="Problem 2 demo workspace", mapping=info["mapping"], merchant_sheet=info["merchant_sheet"], playbook_sheet=info["playbook_sheet"],
+                       assumption_sheet=info["assumption_sheet"], config={"capacity": info["assumptions"]["values"].get("max_outreaches", 15)})
+    jid = uuid.uuid4().hex[:8]
+    JOBS[jid] = {"status": "running", "stage": "validate", "label": "Preparing the demo workspace", "progress": 0.02, "stages_done": []}
+    _job(jid, body, fixed_sid=DEMO_ID, extra={"demo": True})
+    if JOBS[jid]["status"] != "done":
+        raise HTTPException(500, "The demo workspace could not be built: " + str(JOBS[jid].get("error")))
+
+
+@app.get("/api/demo")
+def demo_status():
+    return {"available": DEMO_WORKBOOK.exists(), "ready": store.load_session(DEMO_ID) is not None, "session_id": DEMO_ID, "workbook": DEMO_WORKBOOK.name,
+            "sheets": ["P2_Merchants", "P2_Playbooks", "P2_Assumptions"], "excluded": "Problem 1 and Problem 3 sheets are not included in the demo."}
+
+
+@app.post("/api/demo")
+def open_demo():
+    if not DEMO_WORKBOOK.exists():
+        raise HTTPException(404, "The bundled Problem 2 workbook is not present on this server.")
+    with _demo_lock:
+        if store.load_session(DEMO_ID) is None:
+            _build_demo()
+    return {"session_id": DEMO_ID}
+
+
+@app.post("/api/demo/reset")
+def reset_demo():
+    if not DEMO_WORKBOOK.exists():
+        raise HTTPException(404, "The bundled Problem 2 workbook is not present on this server.")
+    with _demo_lock:
+        store.delete_session(DEMO_ID)
+        _build_demo()
+    return {"session_id": DEMO_ID}
+
+
 @app.get("/api/sessions")
 def sessions():
     return store.list_sessions()
@@ -291,6 +346,8 @@ def get_session(sid: str):
 
 @app.delete("/api/sessions/{sid}")
 def del_session(sid: str):
+    if sid == DEMO_ID:
+        raise HTTPException(409, "The demo workspace is preloaded and cannot be deleted. Use Reset demo workspace to rebuild it.")
     store.delete_session(sid)
     return {"ok": True}
 
@@ -578,6 +635,25 @@ def get_package(sid: str):
     return Response(p.read_bytes(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="edge_evaluation_package_{s["name"].replace(" ", "_")}.zip"'})
 
 
+@app.get("/api/sessions/{sid}/artifacts")
+def artifacts(sid: str):
+    """Which reports already exist for this analysis and which have not been generated yet."""
+    s, st = _session(sid), store.load_state(sid)
+    base = store.SESSIONS / sid
+
+    def stamp(p):
+        return time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(p.stat().st_mtime)) if p.exists() else None
+    rows = [
+        {"key": "evaluation_package", "label": "Evaluation package (zip)", "primary": True, "generated": (base / "evaluation_package.zip").exists(), "at": stamp(base / "evaluation_package.zip"),
+         "how": "Built when you choose Export evaluation package; includes the robustness test if it has not been run."},
+        {"key": "robustness", "label": "Robustness test results", "generated": (base / "stability.json").exists(), "at": stamp(base / "stability.json"), "how": "Run once in Decision Studio, then reused."},
+        {"key": "validation", "label": "Validation Lab log", "generated": True, "at": None, "how": "Computed live from this analysis each time it is opened."},
+        {"key": "workflow", "label": "Review, approval and outcome log", "generated": bool(st.get("events")), "at": None, "how": "Fills as reviews, approvals, contacts and outcomes are recorded."},
+        {"key": "risk_register", "label": "Merchant risk register, outreach list, analysis and insights", "generated": True, "at": None, "how": "Computed on demand from this analysis when exported."},
+    ]
+    return {"rows": rows}
+
+
 @app.get("/api/sessions/{sid}/ai-disclosure")
 def ai_disclosure(sid: str):
     s = _session(sid)
@@ -626,6 +702,12 @@ def compare_sessions(a: str, b: str):
             "caveat": "Different workbooks are not a continuous time series. Score changes reflect different input data, not necessarily a change in the merchant."}
 
 
+@app.get("/api/intelligence")
+def intelligence_view(session: str | None = None):
+    """Decision Intelligence content, generated from the live configuration. With a session id, worked examples use that analysis."""
+    return intelligence.build(_session(session) if session else None)
+
+
 @app.get("/api/config/model")
 def config_model():
     """Scoring and playbook-trigger configuration, for the Settings page. Read-only: changing it changes the methodology."""
@@ -650,17 +732,91 @@ def put_settings(body: dict):
     return cur
 
 
+LLM_STATE_FILE = DATA_DIR / "llm_status.json"
+
+
+def _error_category(exc: Exception) -> str:
+    """Name the kind of failure without echoing any text from the provider (which could include request details)."""
+    n = type(exc).__name__
+    if n in ("AuthenticationError", "PermissionDeniedError"):
+        return "authentication_failed"
+    if n == "NotFoundError":
+        return "model_not_found"
+    if n == "RateLimitError":
+        return "rate_limited"
+    if n in ("APIConnectionError", "APITimeoutError"):
+        return "network_error"
+    if n == "BadRequestError":
+        return "bad_request"
+    if n in ("InternalServerError", "APIStatusError"):
+        return "provider_error"
+    return "unexpected_error"
+
+
+CATEGORY_TEXT = {"authentication_failed": "Anthropic rejected the key (authentication failed). Check that the key is current and has access.",
+                 "model_not_found": "The configured model name was not found. Check CLAUDE_MODEL.", "rate_limited": "Anthropic is rate-limiting this key. Try again shortly.",
+                 "network_error": "The backend could not reach Anthropic. Check network access from the server.", "bad_request": "Anthropic rejected the request (often an invalid model setting).",
+                 "provider_error": "Anthropic returned a server error. Try again later.", "unexpected_error": "The test failed for an unexpected reason."}
+
+
+def _key_source() -> str:
+    """Where the backend found the key, without reading its value."""
+    if SERVERLESS:
+        return "Vercel server-side environment variable"
+    env = ROOT / ".env"
+    try:
+        for line in env.read_text(encoding="utf-8").splitlines():
+            if line.startswith("ANTHROPIC_API_KEY=") and line.split("=", 1)[1].strip() and not line.split("=", 1)[1].strip().lower().startswith("your-"):
+                return ".env file on this machine"
+    except OSError:
+        pass
+    return "server environment variable"
+
+
+def llm_status() -> dict:
+    """Masked connection status. It reports that a key exists and whether a test passed; it never returns any part of the key."""
+    c = llm()
+    last = None
+    try:
+        last = json.loads(LLM_STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    tested = bool(last) and last.get("model") == c.model
+    ok = bool(tested and last.get("ok") and c.available)
+    return {"provider": "Anthropic", "env_var": "ANTHROPIC_API_KEY", "key_configured": c.available, "backend_can_access_key": c.available, "key_source": _key_source() if c.available else None,
+            "runtime": "Vercel serverless function" if SERVERLESS else "local server", "model": c.model,
+            "model_source": "CLAUDE_MODEL setting" if os.environ.get("CLAUDE_MODEL") else "default", "key_displayed": False,
+            "authentication_test": ("Successful" if ok else "Failed" if tested and not last.get("ok") else "Not run"),
+            "last_test": ({"at": last["at"], "ok": last["ok"], "category": last.get("category"), "model": last.get("model")} if last else None),
+            "ai_assisted_analysis": "Available" if ok else ("Unverified: run the connection test" if c.available else "Unavailable: no key on this server"),
+            "note": "A key in a local .env file is not visible to a deployed server. Each place the app runs needs its own server-side key."}
+
+
+@app.get("/api/llm/status")
+def get_llm_status():
+    return llm_status()
+
+
 @app.post("/api/llm/test")
 def test_llm():
+    """One minimal request (about 20 tokens). The only paid call this tool makes."""
     c = llm()
-    if not c.available:
-        return {"ok": False, "message": "No ANTHROPIC_API_KEY found in .env."}
-    t = time.time()
+    res = {"ok": False, "category": "no_key", "message": "No ANTHROPIC_API_KEY is available to this server."}
+    if c.available:
+        t0 = time.time()
+        try:
+            r = c._sdk().messages.create(model=c.model, max_tokens=8, messages=[{"role": "user", "content": "Reply with the single word: ready"}])
+            reply = "".join(b.text for b in r.content if getattr(b, "type", "") == "text")[:20]
+            res = {"ok": True, "category": "ok", "message": f"Connected to {c.model} in {time.time() - t0:.1f}s.", "reply": reply}
+        except Exception as exc:  # category only: provider text can echo request details
+            cat = _error_category(exc)
+            res = {"ok": False, "category": cat, "message": CATEGORY_TEXT[cat]}
     try:
-        r = c._sdk().messages.create(model=c.model, max_tokens=16, messages=[{"role": "user", "content": "Reply with the single word: ready"}])
-        return {"ok": True, "message": f"Connected to {c.model} in {time.time() - t:.1f}s.", "reply": "".join(b.text for b in r.content if getattr(b, "type", "") == "text")[:40]}
-    except Exception as exc:
-        return {"ok": False, "message": f"Call failed ({type(exc).__name__}). Check the key and model name in .env."}
+        LLM_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LLM_STATE_FILE.write_text(json.dumps({"ok": res["ok"], "category": res["category"], "model": c.model, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}), encoding="utf-8")
+    except OSError:
+        pass
+    return {**res, "status": llm_status()}
 
 
 DIST = ROOT / "web" / "dist"

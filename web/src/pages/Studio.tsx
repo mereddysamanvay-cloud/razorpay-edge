@@ -2,7 +2,7 @@
 import clsx from 'clsx'
 import { ArrowDownRight, ArrowUpRight, Save, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ScenarioBars } from '../components/charts'
 import { Badge, Card, Empty, Notice, PageHeader, Select, Tabs, Tip } from '../components/ui'
 import { api, type Dict } from '../lib/api'
@@ -26,13 +26,17 @@ const PRESETS: { name: string; spec: Dict }[] = [
 export default function Studio() {
   const { sid, s, merchants, byId, st, patch, setSession, reload } = useSession()
   const nav = useNavigate()
-  const [tab, setTab] = useState('decide')
+  const [sp] = useSearchParams()
+  const presetName = sp.get('preset')
+  const presetVals = WEIGHT_PRESETS.find(([n]) => n === presetName)?.[1]
+  const [tab, setTab] = useState(sp.get('tab') === 'robust' ? 'robust' : 'decide')
   const own: Dict = s.weights_pct ?? Object.fromEntries(DIMS.map(([k]) => [k, (s.scoring.weights[k] ?? 0) * 100]))
   const cur = s.scenario
   const [spec, setSpec] = useState<Dict>(() => ({
     capacity: cur.capacity, priorities: [...(cur.priorities ?? [])], risk_focus: cur.risk_focus ?? 'revenue', segments: [...(cur.segments ?? [])],
     prefer_segments: [...(cur.prefer_segments ?? [])], exclude_industries: [...(cur.exclude_industries ?? [])], renewal_window: cur.renewal_window ?? null,
     include_ids: [...new Set([...(cur.include_ids ?? []), ...(st.marked ?? [])])], exclude_ids: Object.keys(st.exclusions ?? {}), exclude_reasons: { ...(st.exclusions ?? {}) },
+    ...(presetVals ? { weights: toW(presetVals) } : {}),
   }))
   const [res, setRes] = useState<Dict | null>(null)
   const [busy, setBusy] = useState(false)
@@ -147,9 +151,11 @@ export default function Studio() {
           {!r ? <Empty title="Calculating…" /> : (<>
             <Card title="What changes" sub={`Proposed selection compared with the current shortlist (${cur.name}).`} action={busy ? <Badge>Updating…</Badge> : undefined}>
               <p className="text-[14px] leading-relaxed">{r.summary}</p>
-              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                {[['Moving in', r.moved_in.length], ['Moving out', r.moved_out.length], ['Run-rate represented', inr(r.value_after_inr)], ['Change', `${r.value_after_inr - r.value_before_inr >= 0 ? '+' : ''}${inr(r.value_after_inr - r.value_before_inr)}`]].map(([l, v]) => (
-                  <div key={l as string} className="rounded-md bg-bg p-3"><p className="label">{l}</p><p className="num mt-1 text-[20px] font-semibold">{v}</p></div>))}
+              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+                {[['Top-list overlap', `${r.weights?.overlap ?? r.after.length - r.moved_in.length} of ${r.after.length}`, 'ok'], ['Moving in', r.moved_in.length, ''], ['Moving out', r.moved_out.length, ''],
+                  ['Avg rank movement', (() => { const mv = (r.rank_changes ?? []).filter((x: Dict) => x.from && x.to).map((x: Dict) => Math.abs(x.from - x.to)); return mv.length ? (mv.reduce((a: number, b: number) => a + b, 0) / mv.length).toFixed(1) : '0.0' })(), ''],
+                  ['Run-rate represented', inr(r.value_after_inr), ''], ['Change', `${r.value_after_inr - r.value_before_inr >= 0 ? '+' : ''}${inr(r.value_after_inr - r.value_before_inr)}`, '']].map(([l, v, k]) => (
+                  <div key={l as string} className={clsx('rounded-md p-3', k === 'ok' ? 'border border-brand/30 bg-brand-soft' : 'bg-bg')}><p className="label">{l}</p><p className="num mt-1 text-[20px] font-semibold">{v}</p></div>))}
               </div>
               {r.weights && (
                 <div className="mt-4 grid gap-3 rounded-md border border-line p-3 text-[13px] md:grid-cols-4">

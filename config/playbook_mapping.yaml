@@ -12,7 +12,7 @@ triggers:
     low_csat_max: 2
     low_csat_min_unresolved: 1
   PB-3:   # "Competitor mention, renewal within ~60 days"
-    notes: [competitor_explicit, exploring_options, rate_card_request]
+    notes: [competitor_explicit, exploring_options, rate_card_request, pricing_objection]
     max_renewal_days: 60
   PB-4:   # "Low logins, few products used, no response to outreach"
     max_logins: 5

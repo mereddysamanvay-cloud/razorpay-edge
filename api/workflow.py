@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import re
 
 from src.agent.safety import check_outreach
 
@@ -14,6 +15,11 @@ PENDING, REVIEWED, APPROVED, CONTACTED, FOLLOW_UP, OUTCOME, CLOSED = "pending_re
 OUTCOMES = {"issue_confirmed": "Issue confirmed", "commercial_review_scheduled": "Commercial review scheduled", "support_acknowledged": "Support issue acknowledged",
             "no_churn_concern": "No churn concern", "unreachable": "Unreachable", "wrong_contact": "Wrong contact", "follow_up_required": "Follow-up required",
             "declined": "Declined", "other": "Other (free text)"}
+# Structured learning fields recorded with an outcome. They are CSM observations for future review, not churn labels.
+VALIDATED = {"yes": "Concern confirmed", "partly": "Partly confirmed", "no": "Concern not confirmed", "unknown": "Could not tell"}
+ISSUE_CATEGORY = {"payment_performance": "Payment performance", "service": "Service or support", "commercial": "Pricing or commercial", "engagement": "Engagement or adoption", "none": "No issue found", "other": "Other"}
+ACTION_TAKEN = {"call": "Call held", "workshop": "Workshop or training", "ticket_closure": "Tickets closed", "commercial_review": "Commercial review", "payments_review": "Payments review with Payments Ops", "no_action": "No action needed", "other": "Other"}
+PLACEHOLDER = re.compile(r"\[[^\]\n]{2,60}\]")
 FACT_SOURCE = {"success_rate_earlier": "success_rate_m1_m3_pct", "success_rate_recent": "success_rate_m4_m6_pct", "open_tickets": "unresolved_tickets", "renewal_days": "days_to_contract_renewal"}
 
 
@@ -45,12 +51,10 @@ def check_draft(m: dict, subject: str, body: str) -> dict:
     """Guardrail result for the CURRENT text. 'violations' block approval; 'warnings' do not."""
     raw = check_outreach(subject, body, allowed_numbers(m), min_words=20, max_words=180)
     violations = [v for v in raw if not v.startswith("missing reviewer-fillable")]
-    warnings = []
-    if any(v.startswith("missing reviewer-fillable") for v in raw):
-        warnings.append("The sign-off placeholder has been replaced. Check the name and wording before you send it yourself.")
-    if "[CSM name]" in body or "[Account Manager name]" in body:
-        warnings.append("The sign-off still contains a placeholder. Replace it with your name before sending.")
-    return {"violations": violations, "warnings": warnings}
+    # An unresolved placeholder such as [CSM name] or [Account Manager name] blocks approval: the reviewer must put a real name in first.
+    for ph in dict.fromkeys(PLACEHOLDER.findall(subject + "\n" + body)):
+        violations.append(f"unresolved placeholder {ph}: replace it with the real name or wording before approval")
+    return {"violations": violations, "warnings": []}
 
 
 def review_pack(m: dict, playbooks: list[dict], subject: str, body: str, draft: dict | None) -> dict:
@@ -156,9 +160,15 @@ def apply(state: dict, m: dict, action: str, p: dict) -> dict:
             raise WorkflowError("Choose one of the listed outcomes.")
         if out == "other" and not (p.get("text") or "").strip():
             raise WorkflowError("Describe the outcome in the free-text box.")
+        learning = {}
+        for key, allowed in (("validated", VALIDATED), ("issue_category", ISSUE_CATEGORY), ("action_taken", ACTION_TAKEN)):
+            if p.get(key):
+                if p[key] not in allowed:
+                    raise WorkflowError(f"Choose one of the listed values for {key.replace('_', ' ')}.")
+                learning[key] = p[key]
         state["statuses"][mid] = OUTCOME
         state.setdefault("outcomes", {}).setdefault(mid, []).append({"outcome": out, "label": OUTCOMES[out], "text": p.get("text") or "", "at": _now(), "reviewer": reviewer,
-                                                                    "note": "A CSM observation. Not a churn label."})
+                                                                    "learning": learning, "note": "A CSM observation. Not a churn label."})
         _event(state, mid, "outcome_recorded", outcome=OUTCOMES[out], detail=p.get("text"), reviewer=reviewer)
     elif action == "close":
         if st not in (OUTCOME, FOLLOW_UP, CONTACTED):
