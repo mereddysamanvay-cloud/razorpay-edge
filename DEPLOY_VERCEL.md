@@ -74,7 +74,7 @@ Every later `git push` to `main` redeploys automatically.
 |---|---|
 | Build fails: function larger than 250 MB | The Python packages (pandas, numpy and so on) are near the limit. Remove `anthropic` from `requirements.txt` if you do not need Claude, then redeploy. |
 | Page loads but every action shows an error | Open `https://your-link/api/health`. If it is a 404 or a Python error, open **Deployments**, then the latest one, then **Functions** logs. |
-| Direct visit to `/a/.../overview` shows 404 | The `vercel.json` routes were not picked up. Confirm the file is at the repository root. |
+| Every page, including the home page, shows "404 NOT_FOUND" | The UI build is published under `/web`, so the `vercel.json` routes must send pages to `/web/index.html`. Use the current `vercel.json` from the repository, push, and let Vercel redeploy. If it persists, open **Deployments**, then the latest, then **Build Logs**, and check that the build finished without errors. |
 | "Analysis not found" after a minute | Saved analyses are temporary on Vercel (limit 1). Re-run, or use Option B. |
 | Upload fails with 413 | The file is over about 4.5 MB. |
 | Robustness test or evaluation package times out | Raise Max Duration (step 7). |
@@ -92,8 +92,9 @@ If you want analyses to persist:
   "builds": [{ "src": "web/package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }],
   "routes": [
     { "src": "/api/(.*)", "dest": "https://edge-api.example.com/api/$1" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/assets/(.*)", "dest": "/web/assets/$1" },
+    { "src": "/(.*\\.(?:webp|png|svg|ico|txt|json|js|css|map|woff2?))", "dest": "/web/$1" },
+    { "src": "/(.*)", "dest": "/web/index.html" }
   ]
 }
 ```

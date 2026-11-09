@@ -6,7 +6,8 @@
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "api/main.py" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/assets/(.*)", "dest": "/web/assets/$1" },
+    { "src": "/(.*\\.(?:webp|png|svg|ico|txt|json|js|css|map|woff2?))", "dest": "/web/$1" },
+    { "src": "/(.*)", "dest": "/web/index.html" }
   ]
 }

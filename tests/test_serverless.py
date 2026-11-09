@@ -51,6 +51,9 @@ def test_vercel_config_is_valid_and_routes_api_before_the_spa():
     assert any(b["use"] == "@vercel/static-build" for b in cfg["builds"])
     srcs = [r.get("src") for r in cfg["routes"] if "src" in r]
     assert srcs[0] == "/api/(.*)" and srcs[-1] == "/(.*)"
+    # @vercel/static-build publishes web/package.json output under /web, so the UI routes must point there (a bare /index.html gives 404 NOT_FOUND)
+    dests = {r["src"]: r["dest"] for r in cfg["routes"] if "src" in r}
+    assert dests["/(.*)"] == "/web/index.html" and dests["/assets/(.*)"].startswith("/web/assets/")
     ignore = (ROOT / ".vercelignore").read_text(encoding="utf-8")
     assert ".env" in ignore and "data" in ignore.split() and "node_modules" in ignore
 
